@@ -1,6 +1,6 @@
 // controller.js
 import { addData, failureResponse, getPaginationInfo, hashPassword } from "../../utils.js";
-import { createTechnician, getDeviceByIdFlat, getDevices, getUserByCondition } from "../../database/db.js";
+import { createTechnician, getDeviceByIdFlat, getDevices, getUsers, getUserByCondition } from "../../database/db.js";
 import { constants } from "../../constants.js";
 
 
@@ -230,6 +230,49 @@ export async function addTechnician(req, res) {
     });
   } catch (err) {
     console.error("addTechnician error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+
+export async function getAllTechnicians(req, res) {
+  try {
+    const { user_id } = req;
+    if (!user_id) return failureResponse(res, 401, "Unauthorized");
+
+    const { rows, page } = req.params;
+
+    if (!rows || isNaN(Number(rows)) || Number(rows) <= 0)
+      return failureResponse(res, 400, "Invalid rows");
+
+    if (!page || isNaN(Number(page)) || Number(page) <= 0)
+      return failureResponse(res, 400, "Invalid page");
+
+    const admin = await getUserByCondition({ user_id });
+    if (!admin) return failureResponse(res, 404, "User not found");
+
+    if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
+
+    if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
+    if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
+
+    const { limit, offset } = getPaginationInfo(rows, page);
+
+    const conditions = {
+      org_id: admin.org_id,
+      department_id: admin.department_id,
+      role: constants.TECHNICIAN,
+    };
+    // getTechnicians
+    const result = await getUsers(limit, offset, conditions);
+
+    return res.status(200).send({
+      status: 200,
+      data: result, // { count, rows }
+    });
+  } catch (err) {
+    console.error("getAllTechnicians error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }

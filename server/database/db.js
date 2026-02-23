@@ -160,3 +160,48 @@ export async function getDeviceByIdFlat(device_id) {
   });
 }
 
+export async function getUsers(limit, offset, conditions) {
+  let options = {
+    where: conditions,
+    limit,
+    order: [["created_at", "DESC"]],
+    raw: true,
+    subQuery: false,
+    distinct: true,
+
+    attributes: {
+      include: [
+        ...constants.USER_ATTRIBUTES.map(attr => attr),
+
+        // ✅ Organization (alias: org)
+        [sequelize.col("org.org_name"), "org_name"],
+        [sequelize.col("org.code"), "org_code"],
+        [sequelize.col("org.status"), "org_status"],
+
+        // ✅ Department
+        [sequelize.col("department.department_name"), "department_name"],
+      ],
+    },
+
+    include: [
+      {
+        model: Organization,
+        as: "org",
+        attributes: [],
+        required: false,
+      },
+      {
+        model: Department,
+        as: "department",
+        attributes: [],
+        required: false,
+      },
+    ],
+  };
+
+  if (offset > 0) {
+    options.offset = offset;
+  }
+
+  return Users.findAndCountAll(options);
+}

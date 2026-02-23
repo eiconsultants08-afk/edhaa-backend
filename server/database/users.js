@@ -53,7 +53,7 @@ const Users = sequelize.define(
 );
 
 // Associations
-Users.belongsTo(Organization, { foreignKey: "org_id" });
-Users.belongsTo(Department, { foreignKey: "department_id" });
+Users.belongsTo(Organization, { foreignKey: "org_id", as: "org" });
+Users.belongsTo(Department, { foreignKey: "department_id", as: "department" });
 
 export default Users;
