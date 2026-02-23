@@ -5,7 +5,6 @@ import { parse } from 'json2csv';
 import { config, constants, environment } from "./constants.js";
 import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { SESClient } from "@aws-sdk/client-ses";
-import { getUserByUsername } from './database/db.js';
 import csvParser from 'csv-parser';
 import crypto from 'crypto';
 const secrets = config.jwt;

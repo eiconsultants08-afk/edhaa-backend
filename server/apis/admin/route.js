@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import { checkAuthorization, checkIfAdmin } from '../../middleware/auth.js';
-import { getAllDevices } from './controller.js';
+import { addTechnician, getAllDevices, getDeviceByDeviceId, getDevicesNotAssignToTechnician } from './controller.js';
 // import {
 //     getUsers,
 //     addUser,
@@ -11,6 +11,10 @@ import { getAllDevices } from './controller.js';
 
 // // list of users
 router.get("/devices/:rows/:page?", checkAuthorization, checkIfAdmin(), getAllDevices);
+router.get("/device/:device_id", checkAuthorization, checkIfAdmin(), getDeviceByDeviceId);
+router.get("/devices-not-assign/:rows/:page?", checkAuthorization, checkIfAdmin(), getDevicesNotAssignToTechnician);
+router.post("/add/technician",checkAuthorization, checkIfAdmin(), addTechnician);
+
 
 // // add user
 // router.post("/user/add", checkAuthorization, checkIfAdmin(), addUser);

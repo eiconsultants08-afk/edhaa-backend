@@ -1,6 +1,6 @@
 import { getToken, checkToken, checkPassword, checkExpiresIn } from "../../utils.js";
 import { constants } from "../../constants.js";
-import { getUserByUsername, updateToken, verifyToken, removeToken } from "../../database/db.js";
+import { updateToken, verifyToken, removeToken, getUserByCondition } from "../../database/db.js";
 
 function generateTokens(payload) {
     const accessToken = getToken(payload, constants.ACCESS_TOKEN_SECRET, constants.EXPIRY_ACCESS_TOKEN);
@@ -15,16 +15,15 @@ export async function login(req, res) {
     try {
         const { username, password } = req.body;
         
-        const user = await getUserByUsername(username);
+        const user = await getUserByCondition({username});
         
         const isCorrect = await checkPassword(password, user.password);
         if (isCorrect) {
             const data = generateTokens({
-                id: user.user_id,
+                user_id: user.user_id,
                 role: user.role,
                 org_id: user.org_id,
             });
-            console.log(user);
             
             await updateToken(user.user_id, user.org_id, data.refreshToken);
             res.status(200).send({
@@ -51,15 +50,16 @@ export async function refresh(req, res) {
     try {
         const { refreshToken } = req.body;
         const decoded = checkToken(refreshToken, constants.REFRESH_TOKEN_SECRET);
-        const isValid = await verifyToken(decoded.id,decoded.org_id, refreshToken);
+        const isValid = await verifyToken(decoded.user_id,decoded.org_id, refreshToken);
+        
         if (isValid) {
             const data = generateTokens({
-                id: decoded.id,
+                user_id: decoded.user_id,
                 role: decoded.role,
                 org_id: decoded.org_id
             });
             if (checkExpiresIn(decoded.exp, constants.EXPIRES_IN)) {
-                await updateToken(decoded.id, decoded.org_id, data.refreshToken);
+                await updateToken(decoded.user_id, decoded.org_id, data.refreshToken);
             } else {
                 delete data.refreshToken;
             }
@@ -85,8 +85,9 @@ export async function refresh(req, res) {
 
 export async function logout(req, res) {
     try {
-        const { id, org_id } = req;
-        await removeToken(id, org_id);
+        const { user_id, org_id } = req;
+        
+        await removeToken(user_id, org_id);
         res.status(200).send({
             status: 200,
             message: "User logout successfully."

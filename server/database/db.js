@@ -9,12 +9,15 @@ import { checkToken } from "../utils.js";
 import Organization from "./organization.js";
 import Department from "./department.js";
 
-export async function getUserByUsername(username) {
-  return Users.findOne({ where: { username: username } });
+export async function getUserByCondition(condition) {
+  return Users.findOne({
+    where: condition,
+    raw: true,
+  });
 }
 
-export async function getUserById(id) {
-  return Users.findByPk(id);
+export async function createTechnician(data) {
+  return Users.create(data);
 }
 
 export async function updateToken(user_id, org_id, refreshToken) {
@@ -65,6 +68,7 @@ export async function removeToken(user_id, org_id) {
 
 // ADMIN APIS 
 
+//get all devices
 export async function getDevices(limit, offset, conditions) {
   const options = {
     where: conditions,
@@ -113,4 +117,46 @@ export async function getDevices(limit, offset, conditions) {
   return Devices.findAndCountAll(options);
 }
 
+
+//get device by id 
+export async function getDeviceByIdFlat(device_id) {
+  return Devices.findOne({
+    where: { device_id },
+    raw: true,
+    subQuery: false,
+
+    include: [
+      { model: Organization, as: "org", attributes: [], required: false },
+      { model: Department, as: "department", attributes: [], required: false },
+      { model: Users, as: "assignedTo", attributes: [], required: false },
+      { model: Users, as: "assignedBy", attributes: [], required: false },
+    ],
+
+    attributes: {
+      include: [
+        // ✅ Organization (flat)
+        [sequelize.col("org.org_name"), "org_name"],
+        [sequelize.col("org.code"), "org_code"],
+        [sequelize.col("org.status"), "org_status"],
+
+        // ✅ Department (flat)
+        [sequelize.col("department.department_name"), "department_name"],
+
+        // ✅ Assigned To (flat)
+        [sequelize.col("assignedTo.name"), "assigned_to_name"],
+        [sequelize.col("assignedTo.email"), "assigned_to_email"],
+        [sequelize.col("assignedTo.username"), "assigned_to_username"],
+        [sequelize.col("assignedTo.role"), "assigned_to_role"],
+        [sequelize.col("assignedTo.status"), "assigned_to_status"],
+
+        // ✅ Assigned By (flat)
+        [sequelize.col("assignedBy.name"), "assigned_by_name"],
+        [sequelize.col("assignedBy.email"), "assigned_by_email"],
+        [sequelize.col("assignedBy.username"), "assigned_by_username"],
+        [sequelize.col("assignedBy.role"), "assigned_by_role"],
+        [sequelize.col("assignedBy.status"), "assigned_by_status"],
+      ],
+    },
+  });
+}
 

@@ -1,6 +1,6 @@
 import { constants } from "../constants.js";
 import { checkToken } from "../utils.js";
-import { getUserById } from "../database/db.js";
+import { getUserByCondition } from "../database/db.js";
 
 function getAuthorizationHeader(req) {
     const authHeader = req.headers.authorization;
@@ -10,8 +10,8 @@ function getAuthorizationHeader(req) {
 function validatedRole(roles) {
     return async function(req, res, next) {
         try {
-            const { id } = req;
-            const user = await getUserById(id);
+            const { user_id } = req;
+            const user = await getUserByCondition({user_id});
             if (user !== null) {
                 if (roles.includes(user.role)) {
                     next();
@@ -55,7 +55,7 @@ export function checkAuthorization(req, res, next) {
             });
         } else {
             const decoded = checkToken(accessToken, constants.ACCESS_TOKEN_SECRET);
-            req.id = decoded.id;
+            req.user_id = decoded.user_id;
             req.org_id = decoded.org_id;
             next();
         }

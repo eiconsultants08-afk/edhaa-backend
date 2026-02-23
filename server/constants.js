@@ -30,15 +30,5 @@ export const constants = {
 
   PER_PAGE_ROWS_MAX: 50,
 
-  USER_ATTRIBUTES: [
-    "user_id",
-    "username",
-    "name",
-    "email",
-    "phone",
-    "org_id",
-    "role",
-    "created_at",
-    "updated_at",
-  ],
+  ADD_TECHNICIAN_ATTRIBUTES: ["username", "name", "email", "phone", "password"],
 };
