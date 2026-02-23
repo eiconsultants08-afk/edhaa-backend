@@ -1,151 +1,53 @@
-// import {
-//   getPaginationInfo,
-//   hashPassword,
-//   updateData,
-//   addData,
-// } from "../../utils.js";
-// import { constants } from "../../constants.js";
-// import {
-//   getAllUsers,
-//   createUser,
-//   updateUser,
-// } from "../../database/db.js";
-// import sequelize from "../../database/connectdb.js";
+// controller.js
+import { failureResponse, getPaginationInfo } from "../../utils.js";
+import { getDevices, getUserById } from "../../database/db.js";
 
 
-// export async function addUser(req, res) {
-//   try {
-//     // Format request body
-//     const userData = addData(req.body, constants.ADD_USER_ATTRIBUTES);
 
-//     const hashedPassword = await hashPassword(userData.password);
-//     userData['password'] = hashedPassword;
-//     userData['role'] = constants.USER;
-    
-//     // Fetch or create organization and get the org_id
-//     const org_id = await addOrganizationName(userData.organization_name);
-//     userData['org_id'] = org_id;
+export async function getAllDevices(req, res) {
+  try {
+    // 1) Auth check (use whatever your middleware sets)
+    const {id} = req; // support both styles
 
-//     // Remove organization_name from userData as it's not needed in the Users table
-//     delete userData.organization_name;
+    // 2) Validate params
+    const { rows, page } = req.params;
 
-//     // Creates User
-//     await createUser(userData);
+    if (!rows || isNaN(Number(rows)) || Number(rows) <= 0) {
+      return failureResponse(res, 400, "Invalid rows");
+    }
+    if (!page || isNaN(Number(page)) || Number(page) <= 0) {
+      return failureResponse(res, 400, "Invalid page");
+    }
 
-//     res.status(201).send({
-//       status: 201,
-//       message: "User created successfully.",
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(400).send({
-//       status: 400,
-//       message: "User creation failed.",
-//     });
-//   }
-// }
+    // 3) Load admin context
+    const admin = await getUserById(id);
+    if (!admin) return failureResponse(res, 404, "User not found");
 
-// export async function getUsers(req, res) {
-//   try {
-//     const { rows, page } = req.params;
-//     const { limit, offset } = getPaginationInfo(rows, page);
+    if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (admin.role !== "ADMIN") return failureResponse(res, 403, "Forbidden");
 
-//     const users = await getAllUsers(limit, offset);
+    // 4) Org/Dept must exist
+    if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
+    if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
 
-//     res.status(200).send({
-//       status: 200,
-//       data: users,
-//       message: `Data of all Users`,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(400).send({
-//       status: 400,
-//       message: "Displaying users data failed.",
-//     });
-//   }
-// }
+    // 5) Pagination
+    const { limit, offset } = getPaginationInfo(rows, page);
 
-// //show user profile
-// export async function userProfile(req, res) {
-//   try {
-//     const { id } = req.params;
-//     const user = await getUserById(id);
-//     let data = {};
+    // 6) Conditions object (like your getAllUsers pattern)
+    const conditions = {
+      org_id: admin.org_id,
+      department_id: admin.department_id,
+    };
 
-//     for (const prop of constants.ADMIN_USER_PROFILE) {
-//       if (prop === 'org_id') {
-//         data['organization'] = await getOrganizationName(user[prop]);
-//       } else {
-//         data[prop] = user[prop];
-//       }
-//     }
+    const result = await getDevices(limit, offset, conditions); // returns { count, rows }
 
-//     if (user) {
-//       res.status(200).send({
-//         status: 200,
-//         data: data,
-//         message: `Data of User ${id}`,
-//       });
-//     } else {
-//       res.status(404).send({
-//         status: 404,
-//         message: "Invalid User",
-//       });
-//     }
-//   } catch(err) {
-//     console.error(err);
-//     res.status(400).send({
-//       status: 400,
-//       message: "Displaying user profile failed.",
-//     });
-//   }
-// }
-
-// // update user profile
-// export async function updateUserProfile(req, res) {
-//   const transaction = await sequelize.transaction();
-//   try {
-//     const { id } = req.params;
-//     let newUserData = req.body;
-
-//     const oldUserData = await getUserById(id);
-//     if (oldUserData) {
-//       const newData = updateData(newUserData, oldUserData, constants.UPDATE_USER_PROFILE);
-
-//       // Check if the password needs to be hashed
-//       if ('password' in newData) {
-//         const hashedPassword = await hashPassword(newData.password);
-//         newData['password'] = hashedPassword;
-//       }
-
-//       // Proceed with updating the user data if there are changes
-//       if (Object.keys(newData).length !== 0) {
-//         const condition = { id: id };
-//         await updateUser(newData, oldUserData, condition, transaction);
-//       }
-
-//       // Commit the transaction
-//       await transaction.commit();
-
-//       res.status(200).send({
-//         status: 200,
-//         message: `Data updated.`,
-//       });
-
-//     } else {
-//       await transaction.rollback();
-//       res.status(404).send({
-//         status: 404,
-//         message: `User ${id} not found.`,
-//       });
-//     }
-//   } catch (err) {
-//     console.error(err);
-//     await transaction.rollback();
-//     res.status(400).send({
-//       status: 400,
-//       message: "Updating user profile failed.",
-//     });
-//   }
-// }
+    return res.status(200).send({
+      status: 200,
+      data: result, // ✅ same structure you showed
+      message:`Devices of ${admin.name}` 
+    });
+  } catch (err) {
+    console.error("getAllDevices error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}

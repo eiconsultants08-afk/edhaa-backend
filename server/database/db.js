@@ -1,11 +1,13 @@
 import Users from "./users.js";
 import Tokens from "./tokens.js";
+import Devices from "./devices.js";
+
 import { Op, fn, col } from "sequelize";
 import sequelize from "./connectdb.js";
 import { constants } from "../constants.js";
 import { checkToken } from "../utils.js";
-
-
+import Organization from "./organization.js";
+import Department from "./department.js";
 
 export async function getUserByUsername(username) {
   return Users.findOne({ where: { username: username } });
@@ -14,7 +16,6 @@ export async function getUserByUsername(username) {
 export async function getUserById(id) {
   return Users.findByPk(id);
 }
-
 
 export async function updateToken(user_id, org_id, refreshToken) {
 
@@ -58,6 +59,58 @@ export async function removeToken(user_id, org_id) {
   if (cToken !== null) {
     await cToken.destroy();
   }
+}
+
+
+
+// ADMIN APIS 
+
+export async function getDevices(limit, offset, conditions) {
+  const options = {
+    where: conditions,
+    limit,
+    order: [["created_at", "DESC"]],
+    raw: true,          // ✅ flat output
+    subQuery: false,    // ✅ helps with limit + include
+    distinct: true,     // ✅ correct count
+    include: [
+      { model: Organization, as: "org", attributes: [], required: false },
+      { model: Department, as: "department", attributes: [], required: false },
+      { model: Users, as: "assignedTo", attributes: [], required: false },
+      { model: Users, as: "assignedBy", attributes: [], required: false },
+    ],
+    attributes: {
+      include: [
+        // Org
+        [sequelize.col("org.org_id"), "org_id"],
+        [sequelize.col("org.org_name"), "org_name"],
+        [sequelize.col("org.code"), "org_code"],
+        [sequelize.col("org.status"), "org_status"],
+
+        // Department
+        [sequelize.col("department.department_id"), "department_id"],
+        [sequelize.col("department.department_name"), "department_name"],
+
+        // Assigned To (Technician)
+        [sequelize.col("assignedTo.user_id"), "assigned_to_user_id"],
+        [sequelize.col("assignedTo.name"), "assigned_to_name"],
+        [sequelize.col("assignedTo.email"), "assigned_to_email"],
+        [sequelize.col("assignedTo.username"), "assigned_to_username"],
+        [sequelize.col("assignedTo.role"), "assigned_to_role"],
+
+        // Assigned By (Admin)
+        [sequelize.col("assignedBy.user_id"), "assigned_by_user_id"],
+        [sequelize.col("assignedBy.name"), "assigned_by_name"],
+        [sequelize.col("assignedBy.email"), "assigned_by_email"],
+        [sequelize.col("assignedBy.username"), "assigned_by_username"],
+        [sequelize.col("assignedBy.role"), "assigned_by_role"],
+      ],
+    },
+  };
+
+  if (offset > 0) options.offset = offset;
+
+  return Devices.findAndCountAll(options);
 }
 
 

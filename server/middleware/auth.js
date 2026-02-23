@@ -42,23 +42,7 @@ export function checkIfAdmin() {
 };
 
 export function checkIfUser() {
-    return validatedRole([constants.ADMIN, constants.USER, constants.SUBADMIN, constants.ENERGY, constants.EADMIN, constants.EUSER, constants.POWER_ANALYST]);
-};
-
-export function checkIfEadmin() {
-    return validatedRole([constants.ADMIN, constants.EADMIN]);
-};
-
-export function checkIfEnergyUser() {
-    return validatedRole([constants.ADMIN, constants.ENERGY, constants.POWER_ANALYST]);
-};
-
-export function checkIfEUser() {
-    return validatedRole([constants.ADMIN, constants.EUSER]);
-};
-
-export function checkIfSubAdmin() {
-    return validatedRole([constants.ADMIN, constants.SUBADMIN]);
+    return validatedRole([constants.ADMIN, constants.TECHNICIAN, constants.SUPER_ADMIN]);
 };
 
 export function checkAuthorization(req, res, next) {

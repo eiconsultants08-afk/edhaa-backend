@@ -62,7 +62,7 @@ const Devices = sequelize.define(
 );
 
 // Associations
-Devices.belongsTo(Organization, { foreignKey: "org_id" });
+Devices.belongsTo(Organization, { foreignKey: "org_id", as: "org" });
 Devices.belongsTo(Users, { foreignKey: "assigned_to_user_id", as: "assignedTo" });
 Devices.belongsTo(Users, { foreignKey: "assigned_by_user_id", as: "assignedBy" });
 Devices.belongsTo(Department, { foreignKey: "department_id" });
