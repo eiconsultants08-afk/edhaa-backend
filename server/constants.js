@@ -32,4 +32,25 @@ export const constants = {
 
   ADD_TECHNICIAN_ATTRIBUTES: ["username", "name", "email", "phone", "password"],
   USER_ATTRIBUTES: ["user_id", "username", "name", "email", "phone", "role", "status", "org_id", "department_id", "created_at", "updated_at"],
+PATIENT_ATTRIBUTES: [
+  "patient_id",
+  "name",
+  "gender",
+  "dob",
+  "address",
+  "phone",
+  "email",
+  "org_id",
+  "created_by",
+  "created_at",
+  "updated_at",
+],
+ADD_PATIENT_ATTRIBUTES: [
+  "name",
+  "gender",
+  "dob",
+  "address",
+  "phone",
+  "email"
+],
 };

@@ -8,6 +8,8 @@ import { constants } from "../constants.js";
 import { checkToken } from "../utils.js";
 import Organization from "./organization.js";
 import Department from "./department.js";
+import Patients from "./patients.js";
+import PatientTestResults from "./patient_test_results.js";
 
 export async function getUserByCondition(condition) {
   return Users.findOne({
@@ -204,4 +206,79 @@ export async function getUsers(limit, offset, conditions) {
   }
 
   return Users.findAndCountAll(options);
+}
+
+
+// TECHNICIAN 
+// db.js
+
+
+export async function getPatients(limit, offset, conditions) {
+  const options = {
+    where: conditions,
+    limit,
+    order: [["created_at", "DESC"]],
+    raw: true,
+    subQuery: false,
+    distinct: true,
+
+    include: [
+      { model: Organization, attributes: [], required: false },
+      { model: Users, as: "creator", attributes: [], required: false },
+    ],
+
+    attributes: {
+      include: [
+        [sequelize.col("Organization.org_name"), "org_name"],
+
+        [sequelize.col("creator.name"), "created_by_name"],
+        [sequelize.col("creator.username"), "created_by_username"],
+        [sequelize.col("creator.email"), "created_by_email"],
+        [sequelize.col("creator.role"), "created_by_role"],
+      ],
+    },
+  };
+
+  if (offset > 0) options.offset = offset;
+
+  return Patients.findAndCountAll(options);
+}
+
+export async function getPatientByIdFlat(conditions) {
+  return Patients.findOne({
+    where: conditions,
+    raw: true,
+    subQuery: false,
+
+    include: [
+      { model: Organization, attributes: [], required: false },
+      { model: Users, as: "creator", attributes: [], required: false },
+    ],
+
+    attributes: {
+      include: [
+        [sequelize.col("Organization.org_name"), "org_name"],
+
+        [sequelize.col("creator.name"), "created_by_name"],
+        [sequelize.col("creator.username"), "created_by_username"],
+        [sequelize.col("creator.email"), "created_by_email"],
+        [sequelize.col("creator.role"), "created_by_role"],
+      ],
+    },
+  });
+}
+
+export async function createPatient(data) {
+  return Patients.create(data);
+}
+
+export async function getTestTypesByIds(ids) {
+  return TestTypes.findAll({
+    where: { test_type_id: ids },
+    raw: true
+  });
+}
+
+export async function bulkCreatePatientTestResults(dataArray) {
+  return PatientTestResults.bulkCreate(dataArray);
 }

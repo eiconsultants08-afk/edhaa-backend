@@ -25,16 +25,10 @@ export const configuration = {
       refreshsecret: secrets.REFRESH_SECRET,
     },
     ui: [
-      "https://energy.weathercastsolutions.com",
-      "https://viyat.weathercastsolutions.com",
-      "https://test.weathercastsolutions.com",
-      "https://microcast.weathercastsolutions.com",
-      "https://log.weathercastsolutions.com",
-      "https://www.weathercastsolutions.com",
-      "https://weathercastsolutions.com",
       "http://localhost:3000",
       "http://www.localhost:3000",
-      "http://localhost:5173"
+      "http://localhost:5173",
+      "http://10.137.14.218:3000"
     ],
     port: 3030,
   },
