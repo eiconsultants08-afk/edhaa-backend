@@ -4,11 +4,11 @@ import { checkAuthorization, checkIfTechnician } from '../../middleware/auth.js'
 import {addPatient, addPatientTestResults, getAllPatients, getDeviceByDeviceId, getPatientById} from './controller.js';
 
 // // add user
-router.post("/patients/:rows/:page?", checkAuthorization, checkIfTechnician, getAllPatients);
-router.get("/patient/:patient_id",checkAuthorization, checkIfTechnician,getPatientById);
-router.post("/add/patient", checkAuthorization, checkIfTechnician, addPatient);
-router.post("/patient/add-test", checkAuthorization, checkIfTechnician,addPatientTestResults);
-router.get("/device/:device_id", checkAuthorization, checkIfTechnician, getDeviceByDeviceId);
+router.get("/patients/:rows/:page?", checkAuthorization, checkIfTechnician, getAllPatients); //...done
+router.get("/patient/:patient_id",checkAuthorization, checkIfTechnician,getPatientById); //...done
+router.post("/add/patient", checkAuthorization, checkIfTechnician, addPatient); //....done
+router.post("/patient/add-test", checkAuthorization, checkIfTechnician,addPatientTestResults); //...done
+router.get("/device/search/:device_id", checkAuthorization, checkIfTechnician, getDeviceByDeviceId); //...done
 
 // //show user profile
 // router.get("/user/profile/:id", checkAuthorization, checkIfAdmin(), userProfile);

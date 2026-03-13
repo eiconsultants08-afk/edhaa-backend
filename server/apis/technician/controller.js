@@ -1,4 +1,5 @@
-import { bulkCreatePatientTestResults, createPatient, getDeviceByIdFlat, getPatientByIdFlat, getPatients, getTestTypesByIds } from "../../database/db.js";
+import { constants } from "../../constants.js";
+import { bulkCreatePatientTestResults, createPatient, getDeviceByIdFlat, getPatientByIdFlat, getPatients, getTestTypesByIds, getUserByCondition } from "../../database/db.js";
 import { addData, failureResponse, getPaginationInfo } from "../../utils.js";
 
 export async function getAllPatients(req, res) {
@@ -50,40 +51,40 @@ export async function getAllPatients(req, res) {
 }
 
 export async function getDeviceByDeviceId(req, res) {
-    try {
-        const {user_id} = req;
+  try {
+    const { user_id } = req;
 
-        const { device_id } = req.params;
-        if (!device_id) return failureResponse(res, 400, "device_id is required");
+    const { device_id } = req.params;
+    if (!device_id) return failureResponse(res, 400, "device_id is required");
 
-        const admin = await getUserByCondition({user_id});
-        if (!admin) return failureResponse(res, 404, "User not found");
+    const admin = await getUserByCondition({ user_id });
+    if (!admin) return failureResponse(res, 404, "User not found");
 
-        if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
-        if (admin.role !== "ADMIN") return failureResponse(res, 403, "Forbidden");
+    if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (admin.role !== "ADMIN") return failureResponse(res, 403, "Forbidden");
 
-        if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
-        if (!admin.department_id) return failureResponse(res, 403, "unknown department");
+    if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
+    if (!admin.department_id) return failureResponse(res, 403, "unknown department");
 
-        // ✅ Single query by device_id (with joins + flat)
-        const device = await getDeviceByIdFlat(device_id);
-        if (!device) return failureResponse(res, 404, "Device not found");
+    // ✅ Single query by device_id (with joins + flat)
+    const device = await getDeviceByIdFlat(device_id);
+    if (!device) return failureResponse(res, 404, "Device not found");
 
-        // ✅ Scope check (authorization)
-        if (device.org_id !== admin.org_id)
-            return failureResponse(res, 403, "Device not in your organization");
+    // ✅ Scope check (authorization)
+    if (device.org_id !== admin.org_id)
+      return failureResponse(res, 403, "Device not in your organization");
 
-        if (device.department_id !== admin.department_id)
-            return failureResponse(res, 403, "Device not in your department");
+    if (device.department_id !== admin.department_id)
+      return failureResponse(res, 403, "Device not in your department");
 
-        return res.status(200).send({
-            status: 200,
-            data: device, // ✅ flat
-        });
-    } catch (err) {
-        console.error("getDeviceByDeviceId error:", err);
-        return res.status(500).send({ status: 500, message: "Internal server error" });
-    }
+    return res.status(200).send({
+      status: 200,
+      data: device, // ✅ flat
+    });
+  } catch (err) {
+    console.error("getDeviceByDeviceId error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
 }
 
 export async function getPatientById(req, res) {
@@ -105,7 +106,7 @@ export async function getPatientById(req, res) {
       return failureResponse(res, 403, "Forbidden");
 
     // 3️⃣ Fetch patient
-    const patient = await getPatientByIdFlat({patient_id});
+    const patient = await getPatientByIdFlat({ patient_id });
 
     if (!patient) return failureResponse(res, 404, "Patient not found");
 
@@ -232,7 +233,7 @@ export async function addPatientTestResults(req, res) {
     }
 
     // 1️⃣ Validate patient
-    const patient = await getPatientByIdFlat({patient_id});
+    const patient = await getPatientByIdFlat({ patient_id });
 
     if (!patient)
       return failureResponse(res, 404, "Patient not found");
@@ -272,7 +273,7 @@ export async function addPatientTestResults(req, res) {
 
     const testCreated = await bulkCreatePatientTestResults(insertData);
 
-    if(!testCreated || testCreated.length === 0) return failureResponse(res, 500, "Failed to add test results"); 
+    if (!testCreated || testCreated.length === 0) return failureResponse(res, 500, "Failed to add test results");
 
     return res.status(201).send({
       status: 201,

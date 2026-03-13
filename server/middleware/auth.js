@@ -8,10 +8,10 @@ function getAuthorizationHeader(req) {
 }
 
 function validatedRole(roles) {
-    return async function(req, res, next) {
+    return async function (req, res, next) {
         try {
             const { user_id } = req;
-            const user = await getUserByCondition({user_id});
+            const user = await getUserByCondition({ user_id });
             if (user !== null) {
                 if (roles.includes(user.role)) {
                     next();
@@ -27,7 +27,7 @@ function validatedRole(roles) {
                     message: "User does not exists."
                 });
             }
-        } catch(err) {
+        } catch (err) {
             console.error(err);
             res.status(400).send({
                 status: 400,
@@ -41,9 +41,7 @@ export function checkIfAdmin() {
     return validatedRole([constants.ADMIN]);
 };
 
-export function checkIfTechnician() {
-    return validatedRole([constants.TECHNICIAN]);
-};
+export const checkIfTechnician = validatedRole([constants.TECHNICIAN]);
 
 export function checkIfUser() {
     return validatedRole([constants.ADMIN, constants.TECHNICIAN, constants.SUPER_ADMIN]);
@@ -63,7 +61,7 @@ export function checkAuthorization(req, res, next) {
             req.org_id = decoded.org_id;
             next();
         }
-    } catch(err) {
+    } catch (err) {
         console.error(err);
         res.status(400).send({
             status: 400,

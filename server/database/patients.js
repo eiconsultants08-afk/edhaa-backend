@@ -46,7 +46,7 @@ const Patients = sequelize.define(
 );
 
 // Associations
-Patients.belongsTo(Organization, { foreignKey: "org_id" });
+Patients.belongsTo(Organization, { foreignKey: "org_id", as: "org" });
 Patients.belongsTo(Users, { foreignKey: "created_by", as: "creator" });
 
 export default Patients;

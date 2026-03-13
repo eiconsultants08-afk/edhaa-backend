@@ -38,7 +38,7 @@ export const configuration = {
       username: "postgres",
       password: "datacast123$",
       dialect: "postgres",
-      host: "datacast-test-02.ckgdsdftfxnu.ap-south-1.rds.amazonaws.com", 
+      host: "datacast-test-02.ckgdsdftfxnu.ap-south-1.rds.amazonaws.com",
       port: 5432,
     },
     jwt: {
@@ -71,28 +71,28 @@ export const subscriptionConfiguration = {
     clientUrl: "http://localhost:3000",
     workingKey: '04D4BAD6BE7A8CAAEFFFD0B3D08BDF35',
     accessCode: 'ATGN05LG83AY51NGYA',
-    ccUrl:'https://test.ccavenue.com'
+    ccUrl: 'https://test.ccavenue.com'
   },
   stg: {
     backendUrl: "https://testapi.weathercastsolutions.com",
     clientUrl: "https://test.weathercastsolutions.com",
     workingKey: 'F0BC1E60E5D3DE3EDD37B1912FA2F3A4',
     accessCode: 'ATFN05LG83AY50NFYA',
-    ccUrl:'https://test.ccavenue.com'
+    ccUrl: 'https://test.ccavenue.com'
   },
   prod: {
     backendUrl: "https://api.weathercastsolutions.com",
     clientUrl: "https://viyat.weathercastsolutions.com",
     workingKey: '3CD4D47E5129781F1E9222F95E7BCA24',
     accessCode: 'AVSV89LE86CG68VSGC',
-    ccUrl:'https://secure.ccavenue.com'
+    ccUrl: 'https://secure.ccavenue.com'
   },
   prodreport: {
     backendUrl: "https://api.weathercastsolutions.com",
     clientUrl: "https://www.weathercastsolutions.com",
     workingKey: 'EF0DCD3270B227B1FF4C8341A99CA6B3',
-    accessCode: 'AVBS65MD46AU54SBUA', 
-    ccUrl: 'https://secure.ccavenue.com' 
+    accessCode: 'AVBS65MD46AU54SBUA',
+    ccUrl: 'https://secure.ccavenue.com'
   },
 };
 
@@ -105,7 +105,7 @@ export default async function createDynamoDBClient() {
       secretAccessKey: secrets.AWS_SECRET_ACCESS_KEY,
     },
   });
-  
+
   return DynamoDBDocumentClient.from(dynamoDBClient);;
 }
 

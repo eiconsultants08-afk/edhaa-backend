@@ -223,13 +223,13 @@ export async function getPatients(limit, offset, conditions) {
     distinct: true,
 
     include: [
-      { model: Organization, attributes: [], required: false },
+      { model: Organization, as: "org", attributes: [], required: false },
       { model: Users, as: "creator", attributes: [], required: false },
     ],
 
     attributes: {
       include: [
-        [sequelize.col("Organization.org_name"), "org_name"],
+        [sequelize.col("org.org_name"), "org_name"],
 
         [sequelize.col("creator.name"), "created_by_name"],
         [sequelize.col("creator.username"), "created_by_username"],
@@ -251,13 +251,13 @@ export async function getPatientByIdFlat(conditions) {
     subQuery: false,
 
     include: [
-      { model: Organization, attributes: [], required: false },
+      { model: Organization, as: "org", attributes: [], required: false },
       { model: Users, as: "creator", attributes: [], required: false },
     ],
 
     attributes: {
       include: [
-        [sequelize.col("Organization.org_name"), "org_name"],
+        [sequelize.col("org.org_name"), "org_name"],
 
         [sequelize.col("creator.name"), "created_by_name"],
         [sequelize.col("creator.username"), "created_by_username"],
