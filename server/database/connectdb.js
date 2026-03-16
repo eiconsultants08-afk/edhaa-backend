@@ -14,10 +14,10 @@ const sequelize = new Sequelize(pgconfig.database, pgconfig.username, pgconfig.p
     },
     // logging: false
      // ✅ Required for many RDS PostgreSQL setups
-     dialectOptions: {
+     dialectOptions: pgconfig.host === 'localhost' ? {} : {
       ssl: {
         require: true,
-        rejectUnauthorized: false, // dev-friendly; for prod use CA cert
+        rejectUnauthorized: false,
       },
     },
 

@@ -7,6 +7,9 @@ dotenv.config(); // Load environment variables from .env file
 const ssm = new SSM({ region: "ap-south-1" });
 
 async function getStringParameter(name, secure = false) {
+  if (process.env[name] !== undefined) {
+    return process.env[name] || null;
+  }
   try {
     const params = { Name: name };
 

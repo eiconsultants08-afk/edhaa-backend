@@ -67,7 +67,7 @@ export const configuration = {
 
 export const subscriptionConfiguration = {
   dev: {
-    backendUrl: "http://localhost:3030",
+    backendUrl: process.env.BACKEND_URL || "http://localhost:3030",
     clientUrl: "http://localhost:3000",
     workingKey: '04D4BAD6BE7A8CAAEFFFD0B3D08BDF35',
     accessCode: 'ATGN05LG83AY51NGYA',
