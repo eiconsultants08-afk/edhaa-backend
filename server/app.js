@@ -1,11 +1,13 @@
 // server.js (or index.js)
 
+import { createServer } from "http";
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { config } from "./constants.js";
 import register from "./routes.js";
 import sequelize from "./database/connectdb.js";
+import { initSocket } from "./socket.js";
 
 const app = express();
 
@@ -52,7 +54,10 @@ register(app);
 /**
  * ✅ Start server on 0.0.0.0 so your phone on the same Wi-Fi can access it
  */
-app.listen(config.port, "0.0.0.0", async () => {
+const httpServer = createServer(app);
+initSocket(httpServer);
+
+httpServer.listen(config.port, "0.0.0.0", async () => {
   console.log(`🚀 Server running on http://0.0.0.0:${config.port}`);
   await startPostgres();
 });
@@ -70,6 +75,25 @@ async function startPostgres() {
 
     await sequelize.sync();
     console.log("✅ Models synced!");
+
+    // Drop NOT NULL on email — email is now optional for technicians
+    await sequelize.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`);
+    console.log("✅ users.email column patched (nullable)");
+
+    // Sync technician statuses: valid (non-expired) token + device count → WORKING/ACTIVE/INACTIVE
+    await sequelize.query(`
+      UPDATE users
+      SET status = CASE
+        WHEN (SELECT COUNT(*) FROM tokens WHERE user_id = users.user_id AND expires_at > NOW()) > 0
+             AND (SELECT COUNT(*) FROM devices WHERE assigned_to_user_id = users.user_id) > 0
+          THEN 'WORKING'::enum_users_status
+        WHEN (SELECT COUNT(*) FROM tokens WHERE user_id = users.user_id AND expires_at > NOW()) > 0
+          THEN 'ACTIVE'::enum_users_status
+        ELSE 'INACTIVE'::enum_users_status
+      END
+      WHERE role = 'TECHNICIAN'::enum_users_role AND status != 'REMOVED'::enum_users_status;
+    `);
+    console.log("✅ Technician statuses synced (WORKING/ACTIVE/INACTIVE)");
   } catch (err) {
     console.error("❌ DB Connection failed:", err);
   }

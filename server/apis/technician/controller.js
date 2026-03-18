@@ -4,6 +4,7 @@ import {
   createPatient,
   createTestHistory,
   getDeviceByIdFlat,
+  getDevicesByTechnician,
   getPatientByIdFlat,
   getPatients,
   getTestTypesByIds,
@@ -36,7 +37,7 @@ export async function getAllPatients(req, res) {
     const technician = await getUserByCondition({ user_id });
 
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE")
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
       return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN)
       return failureResponse(res, 403, "Forbidden");
@@ -76,7 +77,7 @@ export async function getDeviceByDeviceId(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
     if (!technician.org_id) return failureResponse(res, 403, "Technician org not assigned");
 
@@ -89,6 +90,24 @@ export async function getDeviceByDeviceId(req, res) {
     return res.status(200).send({ status: 200, data: device });
   } catch (err) {
     console.error("getDeviceByDeviceId error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function getMyDevices(req, res) {
+  try {
+    const { user_id } = req;
+
+    const technician = await getUserByCondition({ user_id });
+    if (!technician) return failureResponse(res, 404, "User not found");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+
+    const devices = await getDevicesByTechnician(user_id);
+
+    return res.status(200).send({ status: 200, data: devices });
+  } catch (err) {
+    console.error("getMyDevices error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }
@@ -106,7 +125,7 @@ export async function getPatientById(req, res) {
     const technician = await getUserByCondition({ user_id });
 
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE")
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
       return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN)
       return failureResponse(res, 403, "Forbidden");
@@ -148,7 +167,7 @@ export async function addPatient(req, res) {
     const technician = await getUserByCondition({ user_id });
 
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE")
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
       return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN)
       return failureResponse(res, 403, "Forbidden");
@@ -199,7 +218,7 @@ export async function addPatientTestResults(req, res) {
     if (!technician)
       return failureResponse(res, 404, "User not found");
 
-    if (technician.status !== "ACTIVE")
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
       return failureResponse(res, 403, "User not active");
 
     if (technician.role !== constants.TECHNICIAN)
@@ -311,7 +330,7 @@ export async function getTestTypes(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const testTypes = await getTestTypesByOrg(technician.org_id);
@@ -338,7 +357,7 @@ export async function getPatientTests(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const patient = await getPatientByIdFlat({ patient_id });
@@ -370,7 +389,7 @@ export async function getTestResult(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const result = await getTestResultByIdFlat(result_id);
@@ -394,7 +413,7 @@ export async function getTestResultReport(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const result = await getTestResultByIdFlat(result_id);
@@ -421,7 +440,7 @@ export async function updatePatientRecord(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const patient = await getPatientByIdFlat({ patient_id });
@@ -459,7 +478,7 @@ export async function updateTestResult(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const result = await getTestResultByIdFlat(result_id);
@@ -498,7 +517,7 @@ export async function getSessionReport(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const session = await getTestSessionFlat(history_id);
@@ -525,7 +544,7 @@ export async function updateSession(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const session = await getTestSessionFlat(history_id);
@@ -558,7 +577,7 @@ export async function addSessionResults(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
     const session = await getTestSessionFlat(history_id);

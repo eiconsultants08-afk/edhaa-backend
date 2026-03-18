@@ -1,7 +1,8 @@
 // controller.js
 import { addData, failureResponse, getPaginationInfo, hashPassword } from "../../utils.js";
-import { createTechnician, getDeviceByIdFlat, getDevices, getUsers, getUserByCondition } from "../../database/db.js";
+import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician } from "../../database/db.js";
 import { constants } from "../../constants.js";
+import { emitToUser } from "../../socket.js";
 
 
 
@@ -179,19 +180,19 @@ export async function addTechnician(req, res) {
     // ✅ 3) Required checks
     if (!raw.username) return failureResponse(res, 400, "username is required");
     if (!raw.name) return failureResponse(res, 400, "name is required");
-    if (!raw.email) return failureResponse(res, 400, "email is required");
+    if (!raw.phone) return failureResponse(res, 400, "phone is required");
     if (!raw.password) return failureResponse(res, 400, "password is required");
 
     // ✅ 4) Uniqueness checks
     const existingUsername = await getUserByCondition({ username: raw.username });
     if (existingUsername) return failureResponse(res, 409, "Username already exists");
 
-    const existingEmail = await getUserByCondition({ email: raw.email });
-    if (existingEmail) return failureResponse(res, 409, "Email already exists");
+    const existingPhone = await getUserByCondition({ phone: raw.phone });
+    if (existingPhone) return failureResponse(res, 409, "Phone already exists");
 
-    if (raw.phone) {
-      const existingPhone = await getUserByCondition({ phone: raw.phone });
-      if (existingPhone) return failureResponse(res, 409, "Phone already exists");
+    if (raw.email) {
+      const existingEmail = await getUserByCondition({ email: raw.email });
+      if (existingEmail) return failureResponse(res, 409, "Email already exists");
     }
 
     // ✅ 5) Hash password (store only password_hash)
@@ -201,11 +202,11 @@ export async function addTechnician(req, res) {
     const payload = {
       username: raw.username,
       name: raw.name,
-      email: raw.email,
+      email: raw.email || null,
       phone: raw.phone || null,
       password:password_hash,
       role: constants.TECHNICIAN,
-      status: "ACTIVE",
+      status: "INACTIVE",
       org_id: admin.org_id,
       department_id: admin.department_id,
     };
@@ -234,6 +235,86 @@ export async function addTechnician(req, res) {
   }
 }
 
+
+export async function assignDevice(req, res) {
+  try {
+    const { user_id } = req;
+    const { device_id } = req.params;
+
+    if (!device_id) return failureResponse(res, 400, "device_id is required");
+
+    const admin = await getUserByCondition({ user_id });
+    if (!admin) return failureResponse(res, 404, "User not found");
+    if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
+    if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
+    if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
+
+    const device = await getDeviceByIdFlat(device_id);
+    if (!device) return failureResponse(res, 404, "Device not found");
+    if (device.org_id !== admin.org_id) return failureResponse(res, 403, "Device not in your organization");
+    if (device.department_id !== admin.department_id) return failureResponse(res, 403, "Device not in your department");
+
+    const { technician_id } = req.body;
+
+    if (technician_id) {
+      const tech = await getUserByCondition({ user_id: technician_id });
+      if (!tech) return failureResponse(res, 404, "Technician not found");
+      if (tech.role !== constants.TECHNICIAN) return failureResponse(res, 400, "User is not a technician");
+      if (tech.status === "REMOVED") return failureResponse(res, 400, "Technician has been removed from the organization");
+      if (tech.org_id !== admin.org_id) return failureResponse(res, 403, "Technician not in your organization");
+      if (tech.department_id !== admin.department_id) return failureResponse(res, 403, "Technician not in your department");
+    }
+
+    const updateData = {
+      assigned_to_user_id: technician_id || null,
+      assigned_by_user_id: technician_id ? admin.user_id : null,
+      assigned_at: technician_id ? new Date() : null,
+    };
+
+    // Capture previous assignee before update
+    const prev_tech_id = device.assigned_to_user_id;
+
+    const updated = await assignDeviceToTechnician(device_id, updateData);
+
+    // New assignee: if they're logged in (ACTIVE) → WORKING; if offline (INACTIVE) → stays INACTIVE
+    if (technician_id) {
+      const isOnline = await hasActiveToken(technician_id);
+      if (isOnline) await setTechnicianWorking(technician_id);
+    }
+
+    // Previous assignee lost a device — check remaining
+    if (prev_tech_id && prev_tech_id !== technician_id) {
+      const remaining = await getDevicesByTechnician(prev_tech_id);
+      if (remaining.length === 0) {
+        const wasOnline = await hasActiveToken(prev_tech_id);
+        // Online with no devices → ACTIVE; offline with no devices → INACTIVE
+        if (wasOnline) await activateTechnician(prev_tech_id);
+        else await inactivateTechnician(prev_tech_id);
+      }
+    }
+
+    // Real-time: notify old technician their device was taken
+    if (prev_tech_id && prev_tech_id !== technician_id) {
+      emitToUser(prev_tech_id, "device:updated", { device_id, action: "unassigned" });
+    }
+    // Real-time: notify new technician they received a device
+    if (technician_id) {
+      emitToUser(technician_id, "device:updated", { device_id, action: "assigned" });
+    }
+    // Real-time: notify the admin's own socket so open screens can refresh
+    emitToUser(admin.user_id, "devices:updated", { device_id });
+
+    return res.status(200).send({
+      status: 200,
+      data: updated,
+      message: technician_id ? "Device assigned successfully" : "Device unassigned successfully",
+    });
+  } catch (err) {
+    console.error("assignDevice error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
 
 export async function getAllTechnicians(req, res) {
   try {
@@ -273,6 +354,119 @@ export async function getAllTechnicians(req, res) {
     });
   } catch (err) {
     console.error("getAllTechnicians error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function addDevice(req, res) {
+  try {
+    const { user_id } = req;
+
+    const admin = await getUserByCondition({ user_id });
+    if (!admin) return failureResponse(res, 404, "User not found");
+    if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
+    if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
+    if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
+
+    const raw = addData(req.body, constants.ADD_DEVICE_ATTRIBUTES);
+
+    if (!raw.device_id) return failureResponse(res, 400, "device_id is required");
+    if (!raw.serial_no) return failureResponse(res, 400, "serial_no is required");
+    if (!raw.model) return failureResponse(res, 400, "model is required");
+
+    const existing = await getDeviceByIdFlat(raw.device_id);
+    if (existing) return failureResponse(res, 409, "Device ID already exists");
+
+    const device = await createDevice({
+      device_id: raw.device_id,
+      serial_no: raw.serial_no,
+      model: raw.model,
+      status: "ACTIVE",
+      org_id: admin.org_id,
+      department_id: admin.department_id,
+    });
+
+    return res.status(201).send({
+      status: 201,
+      data: { device_id: device.device_id, serial_no: device.serial_no, model: device.model, status: device.status },
+      message: "Device added successfully",
+    });
+  } catch (err) {
+    console.error("addDevice error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function getTechnicianDetail(req, res) {
+  try {
+    const { user_id } = req;
+    const { technician_id } = req.params;
+
+    const admin = await getUserByCondition({ user_id });
+    if (!admin) return failureResponse(res, 404, "User not found");
+    if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
+    if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
+
+    const tech = await getUserByCondition({ user_id: technician_id });
+    if (!tech) return failureResponse(res, 404, "Technician not found");
+    if (tech.role !== constants.TECHNICIAN) return failureResponse(res, 400, "User is not a technician");
+    if (tech.org_id !== admin.org_id) return failureResponse(res, 403, "Technician not in your organization");
+
+    const [devices, sessionCount] = await Promise.all([
+      getDevicesByTechnician(technician_id),
+      getSessionCountByTechnician(technician_id),
+    ]);
+
+    return res.status(200).send({
+      status: 200,
+      data: {
+        user_id: tech.user_id,
+        name: tech.name,
+        username: tech.username,
+        email: tech.email,
+        phone: tech.phone,
+        status: tech.status,
+        created_at: tech.created_at,
+        devices,
+        session_count: sessionCount,
+      },
+    });
+  } catch (err) {
+    console.error("getTechnicianDetail error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function removeTechnician(req, res) {
+  try {
+    const { user_id } = req;
+    const { technician_id } = req.params;
+
+    const admin = await getUserByCondition({ user_id });
+    if (!admin) return failureResponse(res, 404, "User not found");
+    if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
+    if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
+    if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
+
+    const tech = await getUserByCondition({ user_id: technician_id });
+    if (!tech) return failureResponse(res, 404, "Technician not found");
+    if (tech.role !== constants.TECHNICIAN) return failureResponse(res, 400, "User is not a technician");
+    if (tech.org_id !== admin.org_id) return failureResponse(res, 403, "Technician not in your organization");
+
+    await unassignDevicesByTechnician(technician_id);
+    await deactivateTechnician(technician_id);
+
+    // Real-time: notify the removed technician
+    emitToUser(technician_id, "user:deactivated", { reason: "Removed by admin" });
+
+    return res.status(200).send({
+      status: 200,
+      message: "Technician removed from organization",
+    });
+  } catch (err) {
+    console.error("removeTechnician error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }

@@ -223,23 +223,81 @@ async function seed() {
   });
   console.log("  technician:", tech.user_id);
 
-  // 5. Device
-  const [device] = await Devices.findOrCreate({
-    where: { device_id: "DEV-001" },
-    defaults: {
-      device_id: "DEV-001",
-      org_id: org.org_id,
-      serial_no: "SN-DEV-001",
-      model: "BioAnalyzer X1",
-      status: "ACTIVE",
-      firmware_version: "v2.1.0",
-      assigned_to_user_id: tech.user_id,
-      assigned_by_user_id: admin.user_id,
-      assigned_at: new Date(),
-      department_id: dept.department_id,
+  // 4b. Additional technicians
+  const techHash2 = await bcrypt.hash("Tech@123", SALT);
+
+  const techDefs = [
+    { username: "tech_001", name: "Arjun Patel",    email: "arjun@demodx.com",  phone: "8000000003" },
+    { username: "tech_002", name: "Sneha Kulkarni", email: "sneha@demodx.com",  phone: "8000000004" },
+    { username: "tech_003", name: "Karan Verma",    email: "karan@demodx.com",  phone: "8000000005" },
+    { username: "tech_004", name: "Divya Menon",    email: "divya@demodx.com",  phone: "8000000006" },
+    { username: "tech_005", name: "Priya Das",      email: "priya.das@demodx.com", phone: "8000000007" },
+  ];
+
+  const extraTechs = [];
+  for (const def of techDefs) {
+    const [t] = await Users.findOrCreate({
+      where: { username: def.username },
+      defaults: {
+        user_id: uuidv4(),
+        role: "TECHNICIAN",
+        name: def.name,
+        email: def.email,
+        username: def.username,
+        phone: def.phone,
+        password: techHash2,
+        org_id: org.org_id,
+        department_id: dept.department_id,
+        status: "ACTIVE",
+      },
+    });
+    extraTechs.push(t);
+    console.log("  technician:", t.username, t.user_id);
+  }
+
+  const [tech001, tech002, tech003, tech004, tech005] = extraTechs;
+
+  // 5. Devices — upsert so re-runs always sync status + assignment
+  const now = new Date();
+  const deviceDefs = [
+    {
+      device_id: "DEV-001", serial_no: "SN-DEV-001", model: "BioAnalyzer X1",
+      status: "ACTIVE", firmware_version: "v2.1.0",
+      assigned_to_user_id: tech.user_id, assigned_by_user_id: admin.user_id, assigned_at: now,
     },
-  });
-  console.log("  device:", device.device_id);
+    {
+      device_id: "DEV-002", serial_no: "SN-DEV-002", model: "BioAnalyzer X1",
+      status: "ACTIVE", firmware_version: "v2.1.0",
+      assigned_to_user_id: tech001.user_id, assigned_by_user_id: admin.user_id, assigned_at: now,
+    },
+    {
+      device_id: "DEV-003", serial_no: "SN-DEV-003", model: "BioAnalyzer X1",
+      status: "ACTIVE", firmware_version: "v2.1.0",
+      assigned_to_user_id: tech003.user_id, assigned_by_user_id: admin.user_id, assigned_at: now,
+    },
+    {
+      device_id: "DEV-004", serial_no: "SN-DEV-004", model: "BioAnalyzer X1",
+      status: "ACTIVE", firmware_version: "v2.1.0",
+      assigned_to_user_id: tech002.user_id, assigned_by_user_id: admin.user_id, assigned_at: now,
+    },
+    {
+      device_id: "DEV-005", serial_no: "SN-DEV-005", model: "BioAnalyzer X1",
+      status: "ACTIVE", firmware_version: "v2.1.0",
+      assigned_to_user_id: tech004.user_id, assigned_by_user_id: admin.user_id, assigned_at: now,
+    },
+    {
+      device_id: "DEV-006", serial_no: "SN-DEV-006", model: "BioAnalyzer X1",
+      status: "ACTIVE", firmware_version: "v2.1.0",
+      assigned_to_user_id: tech005.user_id, assigned_by_user_id: admin.user_id, assigned_at: now,
+    },
+  ];
+
+  let device;
+  for (const def of deviceDefs) {
+    await Devices.upsert({ ...def, org_id: org.org_id, department_id: dept.department_id });
+    if (def.device_id === "DEV-001") device = await Devices.findByPk("DEV-001");
+    console.log("  device:", def.device_id, def.model, def.status);
+  }
 
   // 6. Test types
   const testTypeDefs = [
@@ -388,12 +446,12 @@ async function seed() {
   console.log("  patients:", p1.patient_id, p2.patient_id);
 
   // 8. Test sessions (TestHistory) + results for sample patients
-  const now = new Date();
-  const yesterday = new Date(now - 86400000);
+  const sessionNow = new Date();
+  const yesterday = new Date(sessionNow - 86400000);
 
   const sessions = [
     {
-      patient: p1, date: now, notes: "Routine checkup",
+      patient: p1, date: sessionNow, notes: "Routine checkup",
       results: [
         { test_type_id: testTypeIds[0], value_num: 12.4 },
         { test_type_id: testTypeIds[1], value_num: 95 },
@@ -406,7 +464,7 @@ async function seed() {
       ],
     },
     {
-      patient: p2, date: now, notes: "Initial visit",
+      patient: p2, date: sessionNow, notes: "Initial visit",
       results: [
         { test_type_id: testTypeIds[0], value_num: 10.1 },
         { test_type_id: testTypeIds[1], value_num: 88 },
@@ -439,15 +497,26 @@ async function seed() {
   console.log("  test sessions + results: seeded");
 
   console.log("\n✅ Seed complete.\n");
-  console.log("────────────────────────────────────────");
-  console.log("  ADMIN LOGIN");
-  console.log("  username : admin_demo");
-  console.log("  password : Admin@123");
-  console.log("────────────────────────────────────────");
-  console.log("  TECHNICIAN LOGIN");
-  console.log("  username : tech_demo");
-  console.log("  password : Tech@123");
-  console.log("────────────────────────────────────────\n");
+  console.log("════════════════════════════════════════");
+  console.log("  SUB ADMIN (ADMIN role)");
+  console.log("  username : admin_demo   password : Admin@123");
+  console.log("════════════════════════════════════════");
+  console.log("  TECHNICIANS (all same org + dept as Sub Admin)");
+  console.log("  username : tech_demo    password : Tech@123   name: Riya Sharma");
+  console.log("  username : tech_001     password : Tech@123   name: Arjun Patel");
+  console.log("  username : tech_002     password : Tech@123   name: Sneha Kulkarni");
+  console.log("  username : tech_003     password : Tech@123   name: Karan Verma");
+  console.log("  username : tech_004     password : Tech@123   name: Divya Menon");
+  console.log("  username : tech_005     password : Tech@123   name: Priya Das");
+  console.log("════════════════════════════════════════");
+  console.log("  DEVICES (all ACTIVE, each assigned to one technician)");
+  console.log("  DEV-001  BioAnalyzer X1      ACTIVE  → tech_demo");
+  console.log("  DEV-002  BioAnalyzer X1      ACTIVE  → tech_001");
+  console.log("  DEV-003  HemaCount Pro        ACTIVE  → tech_003");
+  console.log("  DEV-004  GlucoScan 3000       ACTIVE  → tech_002");
+  console.log("  DEV-005  CholestCheck Ultra   ACTIVE  → tech_004");
+  console.log("  DEV-006  UrineAnalyzer Z2     ACTIVE  → tech_005");
+  console.log("════════════════════════════════════════\n");
 
   await sequelize.close();
 }

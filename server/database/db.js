@@ -517,3 +517,57 @@ export async function updateTestResult(result_id, data) {
   if (rowsUpdated === 0) return null;
   return PatientTestResults.findOne({ where: { result_id }, raw: true });
 }
+
+export async function assignDeviceToTechnician(device_id, data) {
+  await Devices.update(data, { where: { device_id } });
+  return getDeviceByIdFlat(device_id);
+}
+
+export async function getDevicesByTechnician(user_id) {
+  return Devices.findAll({
+    where: { assigned_to_user_id: user_id, status: "ACTIVE" },
+    raw: true,
+    order: [["assigned_at", "DESC"]],
+    attributes: ["device_id", "serial_no", "model", "status", "firmware_version", "department_id", "org_id"],
+  });
+}
+
+export async function createDevice(data) {
+  return Devices.create(data);
+}
+
+export async function deactivateTechnician(user_id) {
+  await Users.update({ status: "REMOVED" }, { where: { user_id } });
+}
+
+export async function activateTechnician(user_id) {
+  await Users.update({ status: "ACTIVE" }, { where: { user_id } });
+}
+
+export async function inactivateTechnician(user_id) {
+  await Users.update({ status: "INACTIVE" }, { where: { user_id } });
+}
+
+export async function setTechnicianWorking(user_id) {
+  await Users.update({ status: "WORKING" }, { where: { user_id } });
+}
+
+export async function hasActiveToken(user_id) {
+  const token = await Tokens.findOne({ where: { user_id, expires_at: { [Op.gt]: new Date() } } });
+  return !!token;
+}
+
+export async function setTechnicianStatusOnLogout(user_id) {
+  await Users.update({ status: "INACTIVE" }, { where: { user_id, role: "TECHNICIAN" } });
+}
+
+export async function unassignDevicesByTechnician(user_id) {
+  await Devices.update(
+    { assigned_to_user_id: null, assigned_by_user_id: null, assigned_at: null },
+    { where: { assigned_to_user_id: user_id } }
+  );
+}
+
+export async function getSessionCountByTechnician(user_id) {
+  return TestHistory.count({ where: { entered_by_user_id: user_id } });
+}

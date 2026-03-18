@@ -6,6 +6,7 @@ import {
   addPatientTestResults,
   getAllPatients,
   getDeviceByDeviceId,
+  getMyDevices,
   getPatientById,
   getTestTypes,
   getPatientTests,
@@ -22,6 +23,7 @@ router.get("/patients/:rows/:page?", checkAuthorization, checkIfTechnician, getA
 router.get("/patient/:patient_id", checkAuthorization, checkIfTechnician, getPatientById);
 router.post("/add/patient", checkAuthorization, checkIfTechnician, addPatient);
 router.post("/patient/add-test", checkAuthorization, checkIfTechnician, addPatientTestResults);
+router.get("/devices", checkAuthorization, checkIfTechnician, getMyDevices);
 router.get("/device/search/:device_id", checkAuthorization, checkIfTechnician, getDeviceByDeviceId);
 
 // New endpoints

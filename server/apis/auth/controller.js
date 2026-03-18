@@ -1,6 +1,6 @@
 import { getToken, checkToken, checkPassword, checkExpiresIn } from "../../utils.js";
 import { constants } from "../../constants.js";
-import { updateToken, verifyToken, removeToken, getUserByCondition } from "../../database/db.js";
+import { updateToken, verifyToken, removeToken, getUserByCondition, getDevicesByTechnician, activateTechnician, setTechnicianWorking, setTechnicianStatusOnLogout } from "../../database/db.js";
 
 function generateTokens(payload) {
     const accessToken = getToken(payload, constants.ACCESS_TOKEN_SECRET, constants.EXPIRY_ACCESS_TOKEN);
@@ -32,6 +32,17 @@ export async function login(req, res) {
             });
             
             await updateToken(user.user_id, user.org_id, data.refreshToken);
+
+            // Set technician status based on device assignment
+            if (user.role === constants.TECHNICIAN) {
+              const devices = await getDevicesByTechnician(user.user_id);
+              if (devices.length > 0) {
+                await setTechnicianWorking(user.user_id);
+              } else {
+                await activateTechnician(user.user_id);
+              }
+            }
+
             res.status(200).send({
                 status: 200,
                 data: data,
@@ -94,6 +105,7 @@ export async function logout(req, res) {
         const { user_id, org_id } = req;
         
         await removeToken(user_id, org_id);
+        await setTechnicianStatusOnLogout(user_id);
         res.status(200).send({
             status: 200,
             message: "User logout successfully."

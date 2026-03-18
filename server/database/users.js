@@ -19,7 +19,7 @@ const Users = sequelize.define(
 
     name: { type: DataTypes.TEXT, allowNull: false },
 
-    email: { type: DataTypes.TEXT, allowNull: false, unique: true },
+    email: { type: DataTypes.TEXT, allowNull: true, unique: true },
     username: { type: DataTypes.TEXT, allowNull: false, unique: true },
     phone: { type: DataTypes.TEXT, unique: true },
 
@@ -40,7 +40,7 @@ const Users = sequelize.define(
     },
 
     status: {
-      type: DataTypes.ENUM("ACTIVE", "INACTIVE", "SUSPENDED"),
+      type: DataTypes.ENUM("ACTIVE", "INACTIVE", "WORKING", "SUSPENDED", "REMOVED"),
       allowNull: false,
       defaultValue: "ACTIVE",
     },
