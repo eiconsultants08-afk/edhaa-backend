@@ -1,6 +1,9 @@
 import { DataTypes } from "sequelize";
 import sequelize from "./connectdb.js";
 
+// Individual measurement within a testing session.
+// Session-level metadata (date, device, technician, notes) lives on TestHistory.
+
 const PatientTestResults = sequelize.define(
   "patient_test_results",
   {
@@ -10,17 +13,19 @@ const PatientTestResults = sequelize.define(
       primaryKey: true,
     },
 
-    org_id: {
-      type: DataTypes.UUID,
-      allowNull: false,
-    },
-
-    department_id: {
+    // FK → TestHistory (nullable so existing rows without a history survive sync)
+    history_id: {
       type: DataTypes.UUID,
       allowNull: true,
     },
 
+    // Kept on the result row for direct patient-scoped queries without joining TestHistory
     patient_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+    },
+
+    org_id: {
       type: DataTypes.UUID,
       allowNull: false,
     },
@@ -30,32 +35,12 @@ const PatientTestResults = sequelize.define(
       allowNull: false,
     },
 
-    device_id: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-
-    entered_by_user_id: {
-      type: DataTypes.UUID,
-      allowNull: false,
-    },
-
-    test_date: {
-      type: DataTypes.DATE,
-      allowNull: false,
-    },
-
     value_num: {
       type: DataTypes.DECIMAL,
       allowNull: true,
     },
 
     value_text: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-
-    notes: {
       type: DataTypes.TEXT,
       allowNull: true,
     },

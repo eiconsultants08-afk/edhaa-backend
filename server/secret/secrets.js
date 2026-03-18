@@ -1,14 +1,18 @@
 import { SSM } from "@aws-sdk/client-ssm";
 import dotenv from "dotenv";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
 
-dotenv.config(); // Load environment variables from .env file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: resolve(__dirname, "../../.env") }); // Load .env relative to this file
 
 // ✅ SSM client (Parameter Store)
 const ssm = new SSM({ region: "ap-south-1" });
 
 async function getStringParameter(name, secure = false) {
   if (process.env[name] !== undefined) {
-    return process.env[name] || null;
+    return process.env[name] ?? null;
   }
   try {
     const params = { Name: name };

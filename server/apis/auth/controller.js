@@ -15,8 +15,14 @@ export async function login(req, res) {
     try {
         const { username, password } = req.body;
         
+        if (!username || !password)
+            return res.status(400).send({ status: 400, message: "Username and password are required." });
+
         const user = await getUserByCondition({username});
-        
+
+        if (!user)
+            return res.status(401).send({ status: 401, message: "Invalid login credentials." });
+
         const isCorrect = await checkPassword(password, user.password);
         if (isCorrect) {
             const data = generateTokens({

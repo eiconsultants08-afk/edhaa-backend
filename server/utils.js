@@ -4,6 +4,7 @@ import moment from "moment-timezone";
 import { parse } from 'json2csv';
 import { config, constants, environment } from "./constants.js";
 import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SESClient } from "@aws-sdk/client-ses";
 import csvParser from 'csv-parser';
 import crypto from 'crypto';
@@ -323,6 +324,22 @@ export const decrypt = (encText, workingKey) => {
 // PROJECTS  
 
 // VALIDATION OF FILES 
+export async function uploadBufferToS3(key, bucket, buffer, contentType) {
+  const params = {
+    Bucket: bucket,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  };
+  const command = new PutObjectCommand(params);
+  return s3Client.send(command);
+}
+
+export async function getPresignedS3Url(key, bucket, expiresIn = 3600) {
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+  return getSignedUrl(s3Client, command, { expiresIn });
+}
+
 export async function checkIfFilesExist(bucket, directory) {
   const params = {
     Bucket: bucket,

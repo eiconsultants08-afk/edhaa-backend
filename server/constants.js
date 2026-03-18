@@ -53,4 +53,17 @@ ADD_PATIENT_ATTRIBUTES: [
   "phone",
   "email"
 ],
+
+UPDATE_PATIENT_ATTRIBUTES: [
+  "name",
+  "gender",
+  "dob",
+  "address",
+  "phone",
+  "email"
+],
+
+UPDATE_SESSION_ATTRIBUTES: ["notes"],
+
+REPORTS_S3_BUCKET: "edhaa-reports",
 };

@@ -10,6 +10,11 @@ import Organization from "./organization.js";
 import Department from "./department.js";
 import Patients from "./patients.js";
 import PatientTestResults from "./patient_test_results.js";
+import TestTypes from "./test_types.js";
+import TestHistory from "./test_history.js";
+
+// Register all model associations
+import "./associations.js";
 
 export async function getUserByCondition(condition) {
   return Users.findOne({
@@ -272,6 +277,50 @@ export async function createPatient(data) {
   return Patients.create(data);
 }
 
+// ── TestHistory ────────────────────────────────────────────────────────────────
+
+export async function createTestHistory(data) {
+  return TestHistory.create(data);
+}
+
+/**
+ * Returns TestHistory entries for a patient, each with nested PatientTestResults
+ * and the test type embedded on each result.
+ * Response shape: { count, rows: [ { history_id, test_date, device_id, notes, results: [...] } ] }
+ */
+export async function getPatientTestHistory(limit, offset, conditions) {
+  const options = {
+    where: conditions,
+    limit,
+    order: [["test_date", "DESC"]],
+    subQuery: false,
+    distinct: true,
+    include: [
+      {
+        model: PatientTestResults,
+        as: "results",
+        required: false,
+        include: [
+          {
+            model: TestTypes,
+            as: "testType",
+            attributes: [
+              "test_type_id", "name", "unit",
+              "normal_min", "normal_max",
+              "male_min", "male_max",
+              "female_min", "female_max",
+              "threshold_operator", "threshold_value",
+            ],
+            required: false,
+          },
+        ],
+      },
+    ],
+  };
+  if (offset > 0) options.offset = offset;
+  return TestHistory.findAndCountAll(options);
+}
+
 export async function getTestTypesByIds(ids) {
   return TestTypes.findAll({
     where: { test_type_id: ids },
@@ -281,4 +330,190 @@ export async function getTestTypesByIds(ids) {
 
 export async function bulkCreatePatientTestResults(dataArray) {
   return PatientTestResults.bulkCreate(dataArray);
+}
+
+export async function getTestTypesByOrg(org_id) {
+  return TestTypes.findAll({
+    where: { org_id, is_active: true },
+    raw: true,
+    order: [["name", "ASC"]],
+  });
+}
+
+export async function getPatientTestResults(limit, offset, conditions) {
+  const options = {
+    where: conditions,
+    limit,
+    order: [["test_date", "DESC"]],
+    raw: true,
+    subQuery: false,
+    distinct: true,
+
+    include: [
+      { model: TestTypes, as: "testType", attributes: [], required: false },
+    ],
+
+    attributes: {
+      include: [
+        [sequelize.col("testType.name"), "test_type_name"],
+        [sequelize.col("testType.unit"), "test_type_unit"],
+        [sequelize.col("testType.normal_min"), "normal_min"],
+        [sequelize.col("testType.normal_max"), "normal_max"],
+        [sequelize.col("testType.male_min"), "male_min"],
+        [sequelize.col("testType.male_max"), "male_max"],
+        [sequelize.col("testType.female_min"), "female_min"],
+        [sequelize.col("testType.female_max"), "female_max"],
+        [sequelize.col("testType.threshold_operator"), "threshold_operator"],
+        [sequelize.col("testType.threshold_value"), "threshold_value"],
+      ],
+    },
+  };
+
+  if (offset > 0) options.offset = offset;
+
+  return PatientTestResults.findAndCountAll(options);
+}
+
+export async function getTestResultByIdFlat(result_id) {
+  // Step 1 — flat result with test type, patient, org
+  const result = await PatientTestResults.findOne({
+    where: { result_id },
+    raw: true,
+    subQuery: false,
+    include: [
+      { model: TestTypes, as: "testType", attributes: [], required: false },
+      { model: Patients, as: "patient", attributes: [], required: false },
+      { model: Organization, as: "org", attributes: [], required: false },
+    ],
+    attributes: {
+      include: [
+        [sequelize.col("testType.name"), "test_type_name"],
+        [sequelize.col("testType.unit"), "test_type_unit"],
+        [sequelize.col("testType.normal_min"), "normal_min"],
+        [sequelize.col("testType.normal_max"), "normal_max"],
+        [sequelize.col("testType.male_min"), "male_min"],
+        [sequelize.col("testType.male_max"), "male_max"],
+        [sequelize.col("testType.female_min"), "female_min"],
+        [sequelize.col("testType.female_max"), "female_max"],
+        [sequelize.col("testType.threshold_operator"), "threshold_operator"],
+        [sequelize.col("testType.threshold_value"), "threshold_value"],
+        [sequelize.col("patient.name"), "patient_name"],
+        [sequelize.col("patient.gender"), "patient_gender"],
+        [sequelize.col("patient.dob"), "patient_dob"],
+        [sequelize.col("patient.phone"), "patient_phone"],
+        [sequelize.col("patient.email"), "patient_email"],
+        [sequelize.col("org.org_name"), "org_name"],
+      ],
+    },
+  });
+
+  if (!result || !result.history_id) return result;
+
+  // Step 2 — session data from TestHistory (date, device, technician, notes, dept)
+  const history = await TestHistory.findOne({
+    where: { history_id: result.history_id },
+    raw: true,
+    subQuery: false,
+    include: [
+      { model: Users, as: "enteredBy", attributes: [], required: false },
+      { model: Department, as: "department", attributes: [], required: false },
+    ],
+    attributes: {
+      include: [
+        [sequelize.col("enteredBy.name"), "entered_by_name"],
+        [sequelize.col("enteredBy.username"), "entered_by_username"],
+        [sequelize.col("department.department_name"), "department_name"],
+      ],
+    },
+  });
+
+  if (!history) return result;
+
+  return {
+    ...result,
+    test_date: history.test_date,
+    notes: history.notes,
+    device_id: history.device_id,
+    department_id: history.department_id,
+    entered_by_name: history.entered_by_name,
+    entered_by_username: history.entered_by_username,
+    department_name: history.department_name,
+  };
+}
+
+export async function getTestSessionFlat(history_id) {
+  const history = await TestHistory.findOne({
+    where: { history_id },
+    raw: true,
+    subQuery: false,
+    include: [
+      { model: Users, as: "enteredBy", attributes: [], required: false },
+      { model: Department, as: "department", attributes: [], required: false },
+      { model: Organization, as: "org", attributes: [], required: false },
+    ],
+    attributes: {
+      include: [
+        [sequelize.col("enteredBy.name"), "entered_by_name"],
+        [sequelize.col("enteredBy.username"), "entered_by_username"],
+        [sequelize.col("department.department_name"), "department_name"],
+        [sequelize.col("org.org_name"), "org_name"],
+      ],
+    },
+  });
+  if (!history) return null;
+
+  const patient = await Patients.findOne({
+    where: { patient_id: history.patient_id },
+    raw: true,
+    attributes: ["patient_id", "name", "gender", "dob", "phone", "email"],
+  });
+
+  const results = await PatientTestResults.findAll({
+    where: { history_id },
+    raw: true,
+    subQuery: false,
+    include: [
+      { model: TestTypes, as: "testType", attributes: [], required: false },
+    ],
+    attributes: {
+      include: [
+        [sequelize.col("testType.name"), "test_type_name"],
+        [sequelize.col("testType.unit"), "test_type_unit"],
+        [sequelize.col("testType.normal_min"), "normal_min"],
+        [sequelize.col("testType.normal_max"), "normal_max"],
+        [sequelize.col("testType.male_min"), "male_min"],
+        [sequelize.col("testType.male_max"), "male_max"],
+        [sequelize.col("testType.female_min"), "female_min"],
+        [sequelize.col("testType.female_max"), "female_max"],
+      ],
+    },
+  });
+
+  return {
+    ...history,
+    patient_name: patient?.name || "-",
+    patient_gender: patient?.gender || "-",
+    patient_dob: patient?.dob || "-",
+    patient_phone: patient?.phone || "-",
+    patient_email: patient?.email || "-",
+    results: results || [],
+  };
+}
+
+export async function updateTestHistory(history_id, data) {
+  const [rowsUpdated] = await TestHistory.update(data, { where: { history_id } });
+  if (rowsUpdated === 0) return null;
+  return TestHistory.findOne({ where: { history_id }, raw: true });
+}
+
+export async function updatePatient(patient_id, data) {
+  const [rowsUpdated] = await Patients.update(data, { where: { patient_id } });
+  if (rowsUpdated === 0) return null;
+  return Patients.findOne({ where: { patient_id }, raw: true });
+}
+
+export async function updateTestResult(result_id, data) {
+  const [rowsUpdated] = await PatientTestResults.update(data, { where: { result_id } });
+  if (rowsUpdated === 0) return null;
+  return PatientTestResults.findOne({ where: { result_id }, raw: true });
 }
