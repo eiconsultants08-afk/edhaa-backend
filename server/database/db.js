@@ -397,6 +397,7 @@ export async function getTestResultByIdFlat(result_id) {
         [sequelize.col("testType.female_max"), "female_max"],
         [sequelize.col("testType.threshold_operator"), "threshold_operator"],
         [sequelize.col("testType.threshold_value"), "threshold_value"],
+        [sequelize.col("patient.patient_code"), "patient_code"],
         [sequelize.col("patient.name"), "patient_name"],
         [sequelize.col("patient.gender"), "patient_gender"],
         [sequelize.col("patient.dob"), "patient_dob"],
@@ -465,7 +466,7 @@ export async function getTestSessionFlat(history_id) {
   const patient = await Patients.findOne({
     where: { patient_id: history.patient_id },
     raw: true,
-    attributes: ["patient_id", "name", "gender", "dob", "phone", "email"],
+    attributes: ["patient_id", "patient_code", "name", "gender", "dob", "phone", "email"],
   });
 
   const results = await PatientTestResults.findAll({
@@ -491,6 +492,7 @@ export async function getTestSessionFlat(history_id) {
 
   return {
     ...history,
+    patient_code: patient?.patient_code ?? null,
     patient_name: patient?.name || "-",
     patient_gender: patient?.gender || "-",
     patient_dob: patient?.dob || "-",
@@ -570,4 +572,26 @@ export async function unassignDevicesByTechnician(user_id) {
 
 export async function getSessionCountByTechnician(user_id) {
   return TestHistory.count({ where: { entered_by_user_id: user_id } });
+}
+
+export async function bulkUpdateTestResultsBySession(history_id, testsArray) {
+  // testsArray: [{ test_type_id, value_num?, value_text? }]
+  const updates = testsArray.map(t =>
+    PatientTestResults.update(
+      { value_num: t.value_num ?? null, value_text: t.value_text ?? null },
+      { where: { history_id, test_type_id: t.test_type_id } }
+    )
+  );
+  return Promise.all(updates);
+}
+
+/** Returns count of result rows for a session that still have no value recorded */
+export async function countUnfilledResults(history_id) {
+  return PatientTestResults.count({
+    where: {
+      history_id,
+      value_num:  null,
+      value_text: null,
+    },
+  });
 }

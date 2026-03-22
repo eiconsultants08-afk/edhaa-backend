@@ -12,6 +12,10 @@ const Patients = sequelize.define(
       primaryKey: true,
     },
 
+    patient_code: {
+      type: DataTypes.INTEGER,
+    },
+
     org_id: {
       type: DataTypes.UUID,
       allowNull: false,

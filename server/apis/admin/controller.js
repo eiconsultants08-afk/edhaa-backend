@@ -1,8 +1,9 @@
 // controller.js
 import { addData, failureResponse, getPaginationInfo, hashPassword } from "../../utils.js";
-import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician } from "../../database/db.js";
+import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat } from "../../database/db.js";
 import { constants } from "../../constants.js";
 import { emitToUser } from "../../socket.js";
+import { generateSessionReportPdf } from "../../pdf/reportGenerator.js";
 
 
 
@@ -467,6 +468,152 @@ export async function removeTechnician(req, res) {
     });
   } catch (err) {
     console.error("removeTechnician error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+// ── Patient management (Admin) ─────────────────────────────────────────────────
+
+async function getAdminContext(user_id, res) {
+  const admin = await getUserByCondition({ user_id });
+  if (!admin) { failureResponse(res, 404, "User not found"); return null; }
+  if (admin.status !== "ACTIVE") { failureResponse(res, 403, "User is not active"); return null; }
+  if (admin.role !== constants.ADMIN) { failureResponse(res, 403, "Forbidden"); return null; }
+  if (!admin.org_id) { failureResponse(res, 403, "Admin org not assigned"); return null; }
+  return admin;
+}
+
+export async function getAllPatientsAdmin(req, res) {
+  try {
+    const { user_id } = req;
+    const { rows, page } = req.params;
+    if (!rows || isNaN(Number(rows)) || Number(rows) <= 0) return failureResponse(res, 400, "Invalid rows");
+    if (!page || isNaN(Number(page)) || Number(page) <= 0) return failureResponse(res, 400, "Invalid page");
+
+    const admin = await getAdminContext(user_id, res);
+    if (!admin) return;
+
+    const { limit, offset } = getPaginationInfo(rows, page);
+    const patients = await getPatients(limit, offset, { org_id: admin.org_id });
+    return res.status(200).send({ status: 200, data: patients });
+  } catch (err) {
+    console.error("getAllPatientsAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function getPatientByIdAdmin(req, res) {
+  try {
+    const { user_id } = req;
+    const { patient_id } = req.params;
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+
+    const admin = await getAdminContext(user_id, res);
+    if (!admin) return;
+
+    const patient = await getPatientByIdFlat({ patient_id });
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+    if (patient.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
+
+    return res.status(200).send({ status: 200, data: patient });
+  } catch (err) {
+    console.error("getPatientByIdAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function addPatientAdmin(req, res) {
+  try {
+    const { user_id } = req;
+    const admin = await getAdminContext(user_id, res);
+    if (!admin) return;
+
+    const raw = req.body || {};
+    if (!raw.name || raw.name.trim() === "") return failureResponse(res, 400, "Patient name is required");
+
+    const filteredData = addData(raw, constants.ADD_PATIENT_ATTRIBUTES);
+    const created = await createPatient({
+      ...filteredData,
+      org_id: admin.org_id,
+      created_by: admin.user_id,
+    });
+
+    return res.status(201).send({ status: 201, data: created, message: "Patient created successfully" });
+  } catch (err) {
+    console.error("addPatientAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function updatePatientAdmin(req, res) {
+  try {
+    const { user_id } = req;
+    const { patient_id } = req.params;
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+
+    const admin = await getAdminContext(user_id, res);
+    if (!admin) return;
+
+    const patient = await getPatientByIdFlat({ patient_id });
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+    if (patient.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
+
+    const raw = req.body || {};
+    const filteredData = addData(raw, constants.UPDATE_PATIENT_ATTRIBUTES);
+    if (Object.keys(filteredData).length === 0) return failureResponse(res, 400, "No updatable fields provided");
+
+    const updated = await updatePatient(patient_id, filteredData);
+    if (!updated) return failureResponse(res, 500, "Failed to update patient");
+
+    return res.status(200).send({ status: 200, data: updated, message: "Patient updated successfully" });
+  } catch (err) {
+    console.error("updatePatientAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function getPatientTestsAdmin(req, res) {
+  try {
+    const { user_id } = req;
+    const { patient_id, rows, page } = req.params;
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+    if (!rows || isNaN(Number(rows)) || Number(rows) <= 0) return failureResponse(res, 400, "Invalid rows");
+    if (!page || isNaN(Number(page)) || Number(page) <= 0) return failureResponse(res, 400, "Invalid page");
+
+    const admin = await getAdminContext(user_id, res);
+    if (!admin) return;
+
+    const patient = await getPatientByIdFlat({ patient_id });
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+    if (patient.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
+
+    const { limit, offset } = getPaginationInfo(rows, page);
+    const history = await getPatientTestHistory(limit, offset, { patient_id, org_id: admin.org_id });
+    return res.status(200).send({ status: 200, data: history });
+  } catch (err) {
+    console.error("getPatientTestsAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function getSessionReportAdmin(req, res) {
+  try {
+    const { user_id } = req;
+    const { history_id } = req.params;
+    if (!history_id) return failureResponse(res, 400, "history_id required");
+
+    const admin = await getAdminContext(user_id, res);
+    if (!admin) return;
+
+    const session = await getTestSessionFlat(history_id);
+    if (!session) return failureResponse(res, 404, "Session not found");
+    if (session.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
+
+    const pdfBuffer = await generateSessionReportPdf(session);
+    const pdf_base64 = pdfBuffer.toString("base64");
+    return res.status(200).send({ status: 200, data: { pdf_base64 } });
+  } catch (err) {
+    console.error("getSessionReportAdmin error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }

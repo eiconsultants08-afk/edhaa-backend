@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import { checkAuthorization, checkIfAdmin } from '../../middleware/auth.js';
-import { addDevice, addTechnician, assignDevice, getAllDevices, getAllTechnicians, getDeviceByDeviceId, getDevicesNotAssignToTechnician, getTechnicianDetail, removeTechnician } from './controller.js';
+import { addDevice, addTechnician, assignDevice, getAllDevices, getAllTechnicians, getDeviceByDeviceId, getDevicesNotAssignToTechnician, getTechnicianDetail, removeTechnician, getAllPatientsAdmin, getPatientByIdAdmin, addPatientAdmin, updatePatientAdmin, getPatientTestsAdmin, getSessionReportAdmin } from './controller.js';
 
 // // list of users
 router.get("/devices/:rows/:page?", checkAuthorization, checkIfAdmin(), getAllDevices); //...done
@@ -14,6 +14,14 @@ router.put("/device/:device_id/assign", checkAuthorization, checkIfAdmin(), assi
 router.post("/add/device", checkAuthorization, checkIfAdmin(), addDevice);
 router.get("/technician/:technician_id", checkAuthorization, checkIfAdmin(), getTechnicianDetail);
 router.delete("/technician/:technician_id", checkAuthorization, checkIfAdmin(), removeTechnician);
+
+// Patient management
+router.get("/patients/:rows/:page", checkAuthorization, checkIfAdmin(), getAllPatientsAdmin);
+router.get("/patient/:patient_id", checkAuthorization, checkIfAdmin(), getPatientByIdAdmin);
+router.post("/add/patient", checkAuthorization, checkIfAdmin(), addPatientAdmin);
+router.put("/patient/:patient_id", checkAuthorization, checkIfAdmin(), updatePatientAdmin);
+router.get("/patient/:patient_id/tests/:rows/:page", checkAuthorization, checkIfAdmin(), getPatientTestsAdmin);
+router.get("/session/:history_id/report", checkAuthorization, checkIfAdmin(), getSessionReportAdmin);
 
 // // add user
 // router.post("/user/add", checkAuthorization, checkIfAdmin(), addUser);

@@ -2,29 +2,29 @@ import PDFDocument from "pdfkit";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const PAGE_W  = 595.28;
-const MARGIN  = 40;
-const CW      = PAGE_W - 2 * MARGIN; // usable content width = 515.28
+const PAGE_W = 595.28;
+const PAGE_H = 841.89;
+const MARGIN = 40;
+const CW     = PAGE_W - 2 * MARGIN; // 515.28
 
-const C = {
-  primary:    "#009268",
-  dark:       "#006B4D",
-  light:      "#E6F5F0",
-  danger:     "#B42318",
-  dangerBg:   "#FDECEC",
-  warning:    "#A05A00",
-  warningBg:  "#FFF4E5",
-  success:    "#11865B",
-  successBg:  "#E7F7EF",
-  white:      "#FFFFFF",
-  text:       "#111827",
-  muted:      "#6B7280",
-  labelBg:    "#F3F4F6",
-  border:     "#D1D5DB",
-  altRow:     "#F9FAFB",
-};
+const BLACK  = "#000000";
+const GRAY   = "#555555";
+const BORDER = "#000000";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+function calcAge(dob) {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  if (
+    now.getMonth() < birth.getMonth() ||
+    (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())
+  ) age--;
+  return age >= 0 ? age : null;
+}
 
 function statusFor(r) {
   if (r.value_text) {
@@ -45,133 +45,192 @@ function statusFor(r) {
   return null;
 }
 
-function statusColors(status) {
-  switch ((status || "").toUpperCase()) {
-    case "HIGH":
-    case "POSITIVE": return { fg: C.danger,  bg: C.dangerBg  };
-    case "LOW":      return { fg: C.warning, bg: C.warningBg };
-    case "NORMAL":
-    case "NEGATIVE": return { fg: C.success, bg: C.successBg };
-    default:         return { fg: C.muted,   bg: C.altRow    };
-  }
-}
-
-function refRange(r) {
+function bioReference(r) {
   const unit = r.test_type_unit || r.unit || "";
   if (r.normal_min != null && r.normal_max != null)
-    return `${r.normal_min} – ${r.normal_max}${unit ? " " + unit : ""}`;
-  return "—";
+    return `${r.normal_min} - ${r.normal_max}${unit ? " " + unit : ""}`;
+  return "-";
 }
 
 function fmtDate(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+  if (!iso) return "-";
+  const d    = new Date(iso);
+  const dd   = String(d.getDate()).padStart(2, "0");
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
-// ── Drawing primitives ─────────────────────────────────────────────────────────
-//
-// PDFKit moves its internal cursor after every doc.text() call. When the next
-// text is drawn at a Y position that is LESS than the current cursor Y, PDFKit
-// auto-inserts a new blank page. All multi-text draws on the same row therefore
-// reset doc.y to the row's baseline before each text call.
+// ── Drawing helpers ────────────────────────────────────────────────────────────
 
-/** Green top banner — returns banner height */
-function banner(doc, orgName, deptName) {
-  const h = deptName ? 78 : 60;
-  doc.rect(0, 0, PAGE_W, h).fillColor(C.dark).fill();
-  const orgY = deptName ? 14 : 20;
-  doc.y = 0; // cursor starts at top of page
-  doc.fillColor(C.white).font("Helvetica-Bold").fontSize(18)
-     .text(orgName, MARGIN, orgY, { width: CW, align: "center", lineBreak: false });
+function hline(doc, y, lw = 0.5) {
+  doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y)
+     .strokeColor(BORDER).lineWidth(lw).stroke();
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────────
+
+function drawHeader(doc, orgName, deptName) {
+  // Org name
+  doc.y = MARGIN;
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(18)
+     .text(orgName, MARGIN, MARGIN, { width: CW, align: "center", lineBreak: false });
+
+  let y = MARGIN + 26;
+  hline(doc, y, 1);
+  y += 5;
+
+  // Department line — plain bold text, centered
   if (deptName) {
-    doc.y = orgY; // reset before second text in banner
-    doc.fillColor("#FFFFFFCC").font("Helvetica").fontSize(10)
-       .text(deptName, MARGIN, 38, { width: CW, align: "center", lineBreak: false });
+    doc.y = y;
+    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(10)
+       .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y,
+         { width: CW, align: "center", lineBreak: false });
+    y += 18;
   }
-  return h;
+
+  hline(doc, y, 1);
+  return y + 10;
 }
 
-/** Green section heading bar — returns new Y */
+// ── Section heading ────────────────────────────────────────────────────────────
+
 function sectionHead(doc, label, y) {
-  doc.rect(MARGIN, y, CW, 22).fillColor(C.primary).fill();
+  // Just bold underlined text — no colored background
   doc.y = y;
-  doc.fillColor(C.white).font("Helvetica-Bold").fontSize(10)
-     .text(label, MARGIN + 8, y + 6, { width: CW - 16, lineBreak: false });
-  return y + 22;
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+     .text(label, MARGIN, y, { width: CW, lineBreak: false });
+  const lineY = y + 13;
+  hline(doc, lineY, 0.5);
+  return lineY + 3;
 }
 
-/** 2-column info table (label | value). Returns new Y. */
-function infoTable(doc, rows, y) {
-  const LW = 130;
-  const VW = CW - LW;
-  const RH = 22;
-  rows.forEach((row, i) => {
-    const rowBg = i % 2 === 0 ? C.white : C.altRow;
-    // label cell
-    doc.rect(MARGIN, y, LW, RH).fillColor(C.labelBg).fill();
-    doc.rect(MARGIN, y, LW, RH).strokeColor(C.border).lineWidth(0.5).stroke();
-    doc.y = y; // reset cursor before label
-    doc.fillColor(C.text).font("Helvetica-Bold").fontSize(9)
-       .text(row.label, MARGIN + 6, y + 7, { width: LW - 10, lineBreak: false });
-    // value cell — reset cursor so y+7 is not behind current cursor
-    doc.rect(MARGIN + LW, y, VW, RH).fillColor(rowBg).fill();
-    doc.rect(MARGIN + LW, y, VW, RH).strokeColor(C.border).lineWidth(0.5).stroke();
-    doc.y = y; // reset before value
-    doc.fillColor(row.highlight ? row.highlightColor || C.text : C.text)
-       .font(row.bold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
-       .text(String(row.value || "—"), MARGIN + LW + 6, y + 7, { width: VW - 10, lineBreak: false });
+// ── Patient info grid ──────────────────────────────────────────────────────────
+
+function drawPatientInfo(doc, session, startY) {
+  let y = sectionHead(doc, "PATIENT INFORMATION", startY) + 2;
+
+  const age    = calcAge(session.patient_dob);
+  const ageSex = [age != null ? `${age} Yrs` : null, session.patient_gender]
+                   .filter(Boolean).join(" / ") || "-";
+  const code   = session.patient_code != null
+    ? String(session.patient_code).padStart(5, "0")
+    : "-";
+
+  const rows = [
+    [
+      { label: "Patient Name",             value: session.patient_name || "-" },
+      { label: "Age / Sex",                value: ageSex                      },
+    ],
+    [
+      { label: "Received & Reported Date", value: fmtDate(session.test_date)  },
+      { label: "Patient ID",               value: code                        },
+    ],
+    [
+      { label: "Ref. By",                  value: "-"                         },
+      { label: "Specimen",                 value: "-"                         },
+    ],
+  ];
+
+  const RH  = 20;
+  const C1W = 110; // label 1
+  const C2W = 148; // value 1
+  const C3W = 110; // label 2
+  const C4W = CW - C1W - C2W - C3W; // value 2
+
+  rows.forEach((pair) => {
+    let x = MARGIN;
+
+    // Outer row border
+    doc.rect(MARGIN, y, CW, RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+
+    // Column dividers
+    doc.moveTo(MARGIN + C1W,           y).lineTo(MARGIN + C1W,           y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+    doc.moveTo(MARGIN + C1W + C2W,     y).lineTo(MARGIN + C1W + C2W,     y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+    doc.moveTo(MARGIN + C1W + C2W + C3W, y).lineTo(MARGIN + C1W + C2W + C3W, y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+
+    // Left label
+    doc.y = y;
+    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5)
+       .text(pair[0].label, x + 5, y + 6, { width: C1W - 8, lineBreak: false });
+    x += C1W;
+
+    // Left value
+    doc.y = y;
+    doc.fillColor(BLACK).font("Helvetica").fontSize(8.5)
+       .text(pair[0].value, x + 5, y + 6, { width: C2W - 8, lineBreak: false });
+    x += C2W;
+
+    // Right label
+    doc.y = y;
+    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5)
+       .text(pair[1].label, x + 5, y + 6, { width: C3W - 8, lineBreak: false });
+    x += C3W;
+
+    // Right value
+    doc.y = y;
+    doc.fillColor(BLACK).font("Helvetica").fontSize(8.5)
+       .text(pair[1].value, x + 5, y + 6, { width: C4W - 8, lineBreak: false });
+
     y += RH;
   });
-  return y;
+
+  return y + 8;
 }
 
-/**
- * Summary results table.
- * Columns: No. | Test Name | Result | Unit | Ref Range | Status
- */
-function summaryTable(doc, results, y) {
-  const COLS = [28, 130, 72, 52, 120, 70];
-  const HDRS = ["No.", "Test Name", "Result", "Unit", "Ref Range", "Status"];
-  const RH   = 22;
+// ── Results table ──────────────────────────────────────────────────────────────
 
-  // header row
+function drawResultsTable(doc, results, startY) {
+  let y = sectionHead(doc, "LABORATORY TEST RESULTS", startY) + 2;
+
+  const COLS = [160, 100, 165, 90]; // sum = 515 = CW
+  const HDRS = ["Parameter", "Result Value", "Biological Reference", "Method"];
+  const RH   = 20;
+
+  // Header row — bold text on white, full border
   let cx = MARGIN;
+  doc.rect(MARGIN, y, CW, RH).strokeColor(BORDER).lineWidth(0.5).stroke();
   HDRS.forEach((h, i) => {
-    doc.rect(cx, y, COLS[i], RH).fillColor(C.primary).fill();
-    doc.rect(cx, y, COLS[i], RH).strokeColor(C.dark).lineWidth(0.5).stroke();
-    doc.y = y; // reset before each header cell
-    doc.fillColor(C.white).font("Helvetica-Bold").fontSize(9)
-       .text(h, cx + 4, y + 7, { width: COLS[i] - 8, align: "center", lineBreak: false });
+    if (i > 0) {
+      doc.moveTo(cx, y).lineTo(cx, y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+    }
+    doc.y = y;
+    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+       .text(h, cx + 5, y + 6, { width: COLS[i] - 10, align: "center", lineBreak: false });
     cx += COLS[i];
   });
   y += RH;
 
-  results.forEach((r, idx) => {
+  // Data rows
+  results.forEach((r) => {
     const status  = statusFor(r);
-    const sc      = statusColors(status);
-    const rowBg   = idx % 2 === 0 ? C.white : C.altRow;
-    const unit    = r.test_type_unit || r.unit || "—";
-    const res     = r.value_text ? r.value_text : (r.value_num != null ? String(r.value_num) : "—");
-    const range   = refRange(r);
+    const unit    = r.test_type_unit || r.unit || "";
+    const resVal  = r.value_text
+      ? r.value_text
+      : (r.value_num != null ? String(r.value_num) : "-");
+    const resDisplay  = unit ? `${resVal} ${unit}` : resVal;
+    const isAbnormal  = status && status !== "NORMAL" && status !== "NEGATIVE";
+    // Abnormal values shown in bold; no color change — plain black
+    const resBold = isAbnormal;
 
     const cells = [
-      { text: String(idx + 1), align: "center",  bg: rowBg },
-      { text: r.test_type_name || "—", bold: true, bg: rowBg },
-      { text: res,    align: "center", bold: true, bg: sc.bg, color: sc.fg },
-      { text: unit,   align: "center", bg: rowBg },
-      { text: range,  align: "center", bg: rowBg },
-      { text: status || "—", align: "center", bold: true, bg: sc.bg, color: sc.fg },
+      { text: r.test_type_name || "-", bold: false, align: "left"   },
+      { text: resDisplay,              bold: resBold, align: "center" },
+      { text: bioReference(r),         bold: false, align: "center" },
+      { text: "-",                     bold: false, align: "center" },
     ];
 
     cx = MARGIN;
+    doc.rect(MARGIN, y, CW, RH).strokeColor(BORDER).lineWidth(0.5).stroke();
     cells.forEach((cell, i) => {
-      doc.rect(cx, y, COLS[i], RH).fillColor(cell.bg || rowBg).fill();
-      doc.rect(cx, y, COLS[i], RH).strokeColor(C.border).lineWidth(0.5).stroke();
-      doc.y = y; // reset before each cell text
-      doc.fillColor(cell.color || C.text)
+      if (i > 0) {
+        doc.moveTo(cx, y).lineTo(cx, y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+      }
+      doc.y = y;
+      doc.fillColor(BLACK)
          .font(cell.bold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
-         .text(String(cell.text || "—"), cx + 4, y + 7,
-           { width: COLS[i] - 8, align: cell.align || "left", lineBreak: false });
+         .text(cell.text, cx + 5, y + 6,
+           { width: COLS[i] - 10, align: cell.align, lineBreak: false });
       cx += COLS[i];
     });
     y += RH;
@@ -180,214 +239,96 @@ function summaryTable(doc, results, y) {
   return y;
 }
 
-// ── Page builders ──────────────────────────────────────────────────────────────
+// ── Footer disclaimer ──────────────────────────────────────────────────────────
 
-/** Single test detail page */
-function buildTestDetailPage(doc, session, result, testIndex, totalTests) {
-  const orgName  = session.org_name        || "EDHAA Diagnostic";
-  const deptName = session.department_name || "";
-  const bannerH  = banner(doc, orgName, deptName);
+function drawFooter(doc, y) {
+  y += 12;
+  hline(doc, y, 0.5);
+  y += 8;
 
-  let y = bannerH + 14;
+  const lines = [
+    "Suggested Clinical correlation is advised.",
+    "Test items relate only to the item tested.",
+    "No part of this report can be reproduced without permission of the administrator.",
+  ];
 
-  // Title
-  doc.y = bannerH;
-  doc.fillColor(C.dark).font("Helvetica-Bold").fontSize(13)
-     .text(`TEST DETAIL  —  ${testIndex} of ${totalTests}`, MARGIN, y, { width: CW, align: "center", lineBreak: false });
-  y += 20;
-  doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y).strokeColor(C.primary).lineWidth(1.5).stroke();
-  y += 10;
-
-  // Patient quick-info bar
-  doc.rect(MARGIN, y, CW, 26).fillColor(C.light).fill();
-  doc.rect(MARGIN, y, CW, 26).strokeColor(C.primary).lineWidth(0.5).stroke();
-  doc.y = y;
-  doc.fillColor(C.dark).font("Helvetica-Bold").fontSize(9)
-     .text(`Patient: ${session.patient_name || "—"}`, MARGIN + 8, y + 8, { width: 200, lineBreak: false });
-  if (session.patient_phone) {
+  lines.forEach((line) => {
     doc.y = y;
-    doc.text(`Phone: ${session.patient_phone}`, MARGIN + 220, y + 8, { width: 150, lineBreak: false });
-  }
+    doc.fillColor(GRAY).font("Helvetica").fontSize(8)
+       .text(line, MARGIN, y, { width: CW, lineBreak: false });
+    y += 13;
+  });
+
+  y += 4;
   doc.y = y;
-  doc.text(`Date: ${fmtDate(session.test_date)}`, MARGIN + 380, y + 8, { width: 130, lineBreak: false });
-  y += 36;
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+     .text("THIS IS A SYSTEM GENERATED REPORT", MARGIN, y,
+       { width: CW, align: "center", lineBreak: false });
 
-  // Test info section
-  y = sectionHead(doc, "TEST INFORMATION", y) + 2;
-
-  const status = statusFor(result);
-  const sc     = statusColors(status);
-  const unit   = result.test_type_unit || result.unit || "";
-  const res    = result.value_text
-    ? result.value_text
-    : (result.value_num != null ? String(result.value_num) : "—");
-
-  const detailRows = [
-    { label: "Test Name",       value: result.test_type_name || "—",             bold: true },
-    { label: "Result",          value: `${res}${unit ? " " + unit : ""}`,         bold: true, highlight: true, highlightColor: sc.fg },
-    { label: "Reference Range", value: refRange(result) },
-    { label: "Unit",            value: unit || "—" },
-    { label: "Status",          value: status || "—",                             bold: true, highlight: !!status, highlightColor: sc.fg },
-  ];
-
-  infoTable(doc, detailRows, y);
+  return y + 14;
 }
 
-/** Page 1 — Cover with full patient + session info */
-function buildCoverPage(doc, session) {
-  const orgName  = session.org_name        || "EDHAA Diagnostic";
-  const deptName = session.department_name || "";
-  const bannerH  = banner(doc, orgName, deptName);
+// ── Page number ────────────────────────────────────────────────────────────────
 
-  // Report title
-  let y = bannerH + 16;
-  doc.y = bannerH;
-  doc.fillColor(C.dark).font("Helvetica-Bold").fontSize(15)
-     .text("DIAGNOSTIC TEST REPORT", MARGIN, y, { width: CW, align: "center", lineBreak: false });
-  y += 22;
-  doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y).strokeColor(C.primary).lineWidth(1.5).stroke();
-  y += 14;
-
-  // Patient information
-  y = sectionHead(doc, "PATIENT INFORMATION", y) + 2;
-  const patientRows = [
-    { label: "Full Name",     value: session.patient_name,          bold: true },
-    { label: "Gender",        value: session.patient_gender                    },
-    { label: "Date of Birth", value: fmtDate(session.patient_dob)              },
-  ];
-  if (session.patient_phone) patientRows.push({ label: "Phone", value: session.patient_phone });
-  if (session.patient_email) patientRows.push({ label: "Email", value: session.patient_email });
-  y = infoTable(doc, patientRows, y) + 14;
-
-  // Session information
-  y = sectionHead(doc, "SESSION INFORMATION", y) + 2;
-  const sessionRows = [
-    { label: "Test Date", value: fmtDate(session.test_date) },
-  ];
-  if (session.device_id) sessionRows.push({ label: "Device ID", value: session.device_id });
-  if (session.notes)     sessionRows.push({ label: "Notes",     value: session.notes     });
-  y = infoTable(doc, sessionRows, y) + 14;
-
-  // Recorded by
-  y = sectionHead(doc, "RECORDED BY", y) + 2;
-  infoTable(doc, [
-    { label: "Technician", value: `${session.entered_by_name || "—"} (${session.entered_by_username || "—"})`, bold: true },
-  ], y);
-}
-
-/** Page 2 — Summary table of all tests */
-function buildSummaryPage(doc, session) {
-  const orgName  = session.org_name        || "EDHAA Diagnostic";
-  const deptName = session.department_name || "";
-  const bannerH  = banner(doc, orgName, deptName);
-
-  let y = bannerH + 14;
-
-  // Title
-  doc.y = bannerH;
-  doc.fillColor(C.dark).font("Helvetica-Bold").fontSize(13)
-     .text("TEST RESULTS SUMMARY", MARGIN, y, { width: CW, align: "center", lineBreak: false });
-  y += 20;
-  doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y).strokeColor(C.primary).lineWidth(1.5).stroke();
-  y += 10;
-
-  // Patient quick-info bar — three texts on same row, reset cursor before each
-  doc.rect(MARGIN, y, CW, 26).fillColor(C.light).fill();
-  doc.rect(MARGIN, y, CW, 26).strokeColor(C.primary).lineWidth(0.5).stroke();
-  doc.y = y;
-  doc.fillColor(C.dark).font("Helvetica-Bold").fontSize(9)
-     .text(`Patient: ${session.patient_name || "—"}`, MARGIN + 8, y + 8, { width: 200, lineBreak: false });
-  if (session.patient_phone) {
-    doc.y = y;
-    doc.text(`Phone: ${session.patient_phone}`, MARGIN + 220, y + 8, { width: 150, lineBreak: false });
-  }
-  doc.y = y;
-  doc.text(`Date: ${fmtDate(session.test_date)}`, MARGIN + 380, y + 8, { width: 130, lineBreak: false });
-  y += 36;
-
-  // Summary table
-  summaryTable(doc, session.results || [], y);
-}
-
-// ── Footer ─────────────────────────────────────────────────────────────────────
-
-function pageFooter(doc, orgName, pageNum, totalPages) {
-  const footerY = doc.page.height - 30;
-  doc.moveTo(MARGIN, footerY - 4).lineTo(MARGIN + CW, footerY - 4)
-     .strokeColor(C.border).lineWidth(0.5).stroke();
-  doc.fillColor(C.muted).font("Helvetica").fontSize(8)
-     .text(
-       `Generated on ${new Date().toLocaleString("en-IN")} — ${orgName}`,
-       MARGIN, footerY,
-       { width: CW / 2, align: "left", lineBreak: false }
-     );
-  doc.y = footerY; // reset before right-side text to prevent blank page
-  doc.text(`Page ${pageNum} of ${totalPages}`, MARGIN + CW / 2, footerY,
-    { width: CW / 2, align: "right", lineBreak: false });
+function stampPageNum(doc, pageNum, totalPages) {
+  const py = PAGE_H - 18;
+  doc.y = py;
+  doc.fillColor(GRAY).font("Helvetica").fontSize(7.5)
+     .text(`Page ${pageNum} of ${totalPages}`, MARGIN, py,
+       { width: CW, align: "right", lineBreak: false });
 }
 
 // ── Exported generators ────────────────────────────────────────────────────────
 
 /**
- * Session report: cover page + summary page.
+ * Session report — single page, plain layout.
  * @param {object} session - from getTestSessionFlat
  * @returns {Promise<Buffer>}
  */
 export function generateSessionReportPdf(session) {
   return new Promise((resolve, reject) => {
-    const orgName  = session.org_name || "EDHAA Diagnostic";
-    const results  = session.results || [];
-    const totalPages = 2 + results.length;
+    const orgName  = session.org_name        || "EDHAA Diagnostic";
+    const deptName = session.department_name || "";
+    const results  = session.results         || [];
 
-    // margin: 0 ensures cursor starts at (0,0) after addPage().
-    // With margin > 0 the cursor starts at (margin, margin) and any text drawn
-    // at y < margin (e.g. the banner at y=14) triggers an unwanted blank page.
     const doc = new PDFDocument({ margin: 0, autoFirstPage: false, size: "A4" });
     const buffers = [];
     doc.on("data",  (b) => buffers.push(b));
     doc.on("end",   () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
-    // Page 1: Cover
     doc.addPage();
-    buildCoverPage(doc, session);
-    pageFooter(doc, orgName, 1, totalPages);
 
-    // Page 2: Summary
-    doc.addPage();
-    buildSummaryPage(doc, session);
-    pageFooter(doc, orgName, 2, totalPages);
-
-    // Pages 3+: One detail page per test result
-    results.forEach((result, idx) => {
-      doc.addPage();
-      buildTestDetailPage(doc, session, result, idx + 1, results.length);
-      pageFooter(doc, orgName, 3 + idx, totalPages);
-    });
+    let y = drawHeader(doc, orgName, deptName);
+    y = drawPatientInfo(doc, session, y);
+    y += 4;
+    y = drawResultsTable(doc, results, y);
+    drawFooter(doc, y);
+    stampPageNum(doc, 1, 1);
 
     doc.end();
   });
 }
 
 /**
- * Single-result report (cover + summary of 1 result).
+ * Single-result report.
  * @param {object} result - from getTestResultByIdFlat
  * @returns {Promise<Buffer>}
  */
 export function generateTestReportPdf(result) {
   const session = {
-    org_name:            result.org_name,
-    department_name:     result.department_name,
-    patient_name:        result.patient_name,
-    patient_gender:      result.patient_gender,
-    patient_dob:         result.patient_dob,
-    patient_phone:       result.patient_phone,
-    patient_email:       result.patient_email,
-    test_date:           result.test_date,
-    device_id:           result.device_id,
-    notes:               result.notes,
-    entered_by_name:     result.entered_by_name,
-    entered_by_username: result.entered_by_username,
+    org_name:        result.org_name,
+    department_name: result.department_name,
+    patient_name:    result.patient_name,
+    patient_gender:  result.patient_gender,
+    patient_dob:     result.patient_dob,
+    patient_phone:   result.patient_phone,
+    patient_email:   result.patient_email,
+    patient_code:    result.patient_code,
+    test_date:       result.test_date,
+    device_id:       result.device_id,
+    notes:           result.notes,
+    entered_by_name: result.entered_by_name,
     results: [{
       test_type_name: result.test_type_name,
       test_type_unit: result.test_type_unit,

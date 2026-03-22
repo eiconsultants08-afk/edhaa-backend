@@ -3,7 +3,8 @@ const router = express.Router();
 import { checkAuthorization, checkIfTechnician } from '../../middleware/auth.js';
 import {
   addPatient,
-  addPatientTestResults,
+  registerTestSession,
+  completeTestSession,
   getAllPatients,
   getDeviceByDeviceId,
   getMyDevices,
@@ -22,7 +23,7 @@ import {
 router.get("/patients/:rows/:page?", checkAuthorization, checkIfTechnician, getAllPatients);
 router.get("/patient/:patient_id", checkAuthorization, checkIfTechnician, getPatientById);
 router.post("/add/patient", checkAuthorization, checkIfTechnician, addPatient);
-router.post("/patient/add-test", checkAuthorization, checkIfTechnician, addPatientTestResults);
+router.post("/patient/add-test", checkAuthorization, checkIfTechnician, registerTestSession);
 router.get("/devices", checkAuthorization, checkIfTechnician, getMyDevices);
 router.get("/device/search/:device_id", checkAuthorization, checkIfTechnician, getDeviceByDeviceId);
 
@@ -33,8 +34,10 @@ router.get("/test/:result_id", checkAuthorization, checkIfTechnician, getTestRes
 router.get("/test/:result_id/report", checkAuthorization, checkIfTechnician, getTestResultReport);
 router.get("/session/:history_id/report", checkAuthorization, checkIfTechnician, getSessionReport);
 router.put("/session/:history_id", checkAuthorization, checkIfTechnician, updateSession);
+router.put("/session/:history_id/complete", checkAuthorization, checkIfTechnician, completeTestSession);
 router.post("/session/:history_id/results", checkAuthorization, checkIfTechnician, addSessionResults);
-router.put("/patient/:patient_id", checkAuthorization, checkIfTechnician, updatePatientRecord);
+// Technicians cannot edit patient records — blocked at controller level
+// router.put("/patient/:patient_id", ...)
 router.put("/test/:result_id", checkAuthorization, checkIfTechnician, updateTestResult);
 
 export default router;

@@ -48,6 +48,11 @@ const TestHistory = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    status: {
+      type: DataTypes.ENUM("PENDING", "COMPLETED"),
+      allowNull: false,
+      defaultValue: "PENDING",
+    },
   },
   {
     timestamps: true,
