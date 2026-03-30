@@ -14,6 +14,7 @@ const Organization = sequelize.define(
     phone: { type: DataTypes.TEXT },
     email: { type: DataTypes.TEXT },
     code: { type: DataTypes.TEXT, allowNull: false, unique: true },
+    org_code: { type: DataTypes.INTEGER },
     status: {
       type: DataTypes.ENUM("ACTIVE", "INACTIVE"),
       allowNull: false,

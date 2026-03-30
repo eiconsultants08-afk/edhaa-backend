@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import { checkAuthorization, checkIfAdmin } from '../../middleware/auth.js';
-import { addDevice, addTechnician, assignDevice, getAllDevices, getAllTechnicians, getDeviceByDeviceId, getDevicesNotAssignToTechnician, getTechnicianDetail, removeTechnician, getAllPatientsAdmin, getPatientByIdAdmin, addPatientAdmin, updatePatientAdmin, getPatientTestsAdmin, getSessionReportAdmin } from './controller.js';
+import { addDevice, addTechnician, assignDevice, getAllDevices, getAllTechnicians, getDeviceByDeviceId, getDevicesNotAssignToTechnician, getTechnicianDetail, removeTechnician, getAllPatientsAdmin, getPatientByIdAdmin, addPatientAdmin, updatePatientAdmin, getPatientTestsAdmin, getSessionReportAdmin, getAnalyticsOverviewAdmin, getAnalyticsChartsAdmin, getTestTypeSessionsAdmin } from './controller.js';
 
 // // list of users
 router.get("/devices/:rows/:page?", checkAuthorization, checkIfAdmin(), getAllDevices); //...done
@@ -22,6 +22,11 @@ router.post("/add/patient", checkAuthorization, checkIfAdmin(), addPatientAdmin)
 router.put("/patient/:patient_id", checkAuthorization, checkIfAdmin(), updatePatientAdmin);
 router.get("/patient/:patient_id/tests/:rows/:page", checkAuthorization, checkIfAdmin(), getPatientTestsAdmin);
 router.get("/session/:history_id/report", checkAuthorization, checkIfAdmin(), getSessionReportAdmin);
+
+// Analytics
+router.get("/analytics/overview",            checkAuthorization, checkIfAdmin(), getAnalyticsOverviewAdmin);
+router.get("/analytics/charts",              checkAuthorization, checkIfAdmin(), getAnalyticsChartsAdmin);
+router.get("/analytics/test-type-sessions",  checkAuthorization, checkIfAdmin(), getTestTypeSessionsAdmin);
 
 // // add user
 // router.post("/user/add", checkAuthorization, checkIfAdmin(), addUser);

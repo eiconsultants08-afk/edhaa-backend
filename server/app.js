@@ -85,6 +85,14 @@ async function startPostgres() {
     await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS patients_patient_code_unique ON patients(patient_code);`);
     console.log("✅ patients.patient_code column patched (5-digit numeric ID)");
 
+    // Add org_code — same sequence-backed numeric ID for organizations
+    await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS organizations_org_code_seq;`);
+    await sequelize.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS org_code INTEGER;`);
+    await sequelize.query(`UPDATE organizations SET org_code = nextval('organizations_org_code_seq') WHERE org_code IS NULL;`);
+    await sequelize.query(`ALTER TABLE organizations ALTER COLUMN org_code SET DEFAULT nextval('organizations_org_code_seq');`);
+    await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS organizations_org_code_unique ON organizations(org_code);`);
+    console.log("✅ organizations.org_code column patched (5-digit numeric ID)");
+
     // Add status column to test_histories (Sequelize pluralises the model name)
     await sequelize.query(`DO $$ BEGIN CREATE TYPE enum_test_history_status AS ENUM ('PENDING', 'COMPLETED'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
     await sequelize.query(`ALTER TABLE test_histories ADD COLUMN IF NOT EXISTS status enum_test_history_status NOT NULL DEFAULT 'PENDING';`);

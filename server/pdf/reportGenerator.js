@@ -4,12 +4,23 @@ import PDFDocument from "pdfkit";
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
-const MARGIN = 40;
-const CW     = PAGE_W - 2 * MARGIN; // 515.28
+const MARGIN  = 40;
+const CW      = PAGE_W - 2 * MARGIN; // 515.28
 
-const BLACK  = "#000000";
-const GRAY   = "#555555";
-const BORDER = "#000000";
+// Green palette
+const DARK_GREEN  = "#1A6B40";   // header band, dept banner
+const MED_GREEN   = "#11865B";   // section heads, table header
+const LIGHT_GREEN = "#E8F7EF";   // label columns in patient grid
+const WHITE       = "#FFFFFF";
+const BLACK       = "#000000";
+const GRAY        = "#555555";
+
+// Result status colours
+const COLOR_NORMAL   = "#11865B";
+const COLOR_HIGH     = "#B42318";
+const COLOR_LOW      = "#A05A00";
+const COLOR_POSITIVE = "#B42318";
+const COLOR_NEGATIVE = "#11865B";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -29,8 +40,8 @@ function calcAge(dob) {
 function statusFor(r) {
   if (r.value_text) {
     const v = (r.value_text || "").toUpperCase();
-    if (v === "POSITIVE") return "POSITIVE";
-    if (v === "NEGATIVE") return "NEGATIVE";
+    if (v === "POSITIVE")  return "POSITIVE";
+    if (v === "NEGATIVE")  return "NEGATIVE";
     return r.value_text;
   }
   if (r.value_num == null) return null;
@@ -43,6 +54,13 @@ function statusFor(r) {
     return "NORMAL";
   }
   return null;
+}
+
+function statusColor(status) {
+  if (status === "HIGH"     || status === "POSITIVE") return COLOR_HIGH;
+  if (status === "LOW")                                return COLOR_LOW;
+  if (status === "NORMAL"   || status === "NEGATIVE") return COLOR_NORMAL;
+  return BLACK;
 }
 
 function bioReference(r) {
@@ -63,46 +81,50 @@ function fmtDate(iso) {
 
 // ── Drawing helpers ────────────────────────────────────────────────────────────
 
-function hline(doc, y, lw = 0.5) {
+function hline(doc, y, lw = 0.5, color = BLACK) {
   doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y)
-     .strokeColor(BORDER).lineWidth(lw).stroke();
+     .strokeColor(color).lineWidth(lw).stroke();
 }
 
-// ── Header ─────────────────────────────────────────────────────────────────────
+function filledRect(doc, x, y, w, h, fill, stroke = null, lw = 0.5) {
+  doc.rect(x, y, w, h).fillColor(fill).fill();
+  if (stroke) {
+    doc.rect(x, y, w, h).strokeColor(stroke).lineWidth(lw).stroke();
+  }
+}
+
+// ── Header — dark green band ───────────────────────────────────────────────────
 
 function drawHeader(doc, orgName, deptName) {
-  // Org name
-  doc.y = MARGIN;
-  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(18)
-     .text(orgName, MARGIN, MARGIN, { width: CW, align: "center", lineBreak: false });
+  // Dark green org name band
+  const BAND_H = 38;
+  filledRect(doc, MARGIN, MARGIN, CW, BAND_H, DARK_GREEN);
+  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(17)
+     .text(orgName, MARGIN, MARGIN + 11, { width: CW, align: "center", lineBreak: false });
 
-  let y = MARGIN + 26;
-  hline(doc, y, 1);
-  y += 5;
+  let y = MARGIN + BAND_H;
 
-  // Department line — plain bold text, centered
+  // Department banner — medium green, slightly shorter
   if (deptName) {
-    doc.y = y;
-    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(10)
-       .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y,
+    const DEPT_H = 20;
+    filledRect(doc, MARGIN, y, CW, DEPT_H, MED_GREEN);
+    doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(9)
+       .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y + 6,
          { width: CW, align: "center", lineBreak: false });
-    y += 18;
+    y += DEPT_H;
   }
 
-  hline(doc, y, 1);
   return y + 10;
 }
 
-// ── Section heading ────────────────────────────────────────────────────────────
+// ── Section heading — green banner ─────────────────────────────────────────────
 
 function sectionHead(doc, label, y) {
-  // Just bold underlined text — no colored background
-  doc.y = y;
-  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-     .text(label, MARGIN, y, { width: CW, lineBreak: false });
-  const lineY = y + 13;
-  hline(doc, lineY, 0.5);
-  return lineY + 3;
+  const H = 18;
+  filledRect(doc, MARGIN, y, CW, H, MED_GREEN);
+  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(9)
+     .text(label, MARGIN + 6, y + 5, { width: CW - 12, lineBreak: false });
+  return y + H + 3;
 }
 
 // ── Patient info grid ──────────────────────────────────────────────────────────
@@ -132,7 +154,7 @@ function drawPatientInfo(doc, session, startY) {
     ],
   ];
 
-  const RH  = 20;
+  const RH  = 22;
   const C1W = 110; // label 1
   const C2W = 148; // value 1
   const C3W = 110; // label 2
@@ -141,36 +163,28 @@ function drawPatientInfo(doc, session, startY) {
   rows.forEach((pair) => {
     let x = MARGIN;
 
-    // Outer row border
-    doc.rect(MARGIN, y, CW, RH).strokeColor(BORDER).lineWidth(0.5).stroke();
-
-    // Column dividers
-    doc.moveTo(MARGIN + C1W,           y).lineTo(MARGIN + C1W,           y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
-    doc.moveTo(MARGIN + C1W + C2W,     y).lineTo(MARGIN + C1W + C2W,     y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
-    doc.moveTo(MARGIN + C1W + C2W + C3W, y).lineTo(MARGIN + C1W + C2W + C3W, y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
-
-    // Left label
-    doc.y = y;
-    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5)
-       .text(pair[0].label, x + 5, y + 6, { width: C1W - 8, lineBreak: false });
+    // Label 1 — light green background
+    filledRect(doc, x, y, C1W, RH, LIGHT_GREEN, MED_GREEN, 0.5);
+    doc.fillColor(DARK_GREEN).font("Helvetica-Bold").fontSize(8.5)
+       .text(pair[0].label, x + 5, y + 7, { width: C1W - 8, lineBreak: false });
     x += C1W;
 
-    // Left value
-    doc.y = y;
+    // Value 1 — white
+    filledRect(doc, x, y, C2W, RH, WHITE, MED_GREEN, 0.5);
     doc.fillColor(BLACK).font("Helvetica").fontSize(8.5)
-       .text(pair[0].value, x + 5, y + 6, { width: C2W - 8, lineBreak: false });
+       .text(pair[0].value, x + 5, y + 7, { width: C2W - 8, lineBreak: false });
     x += C2W;
 
-    // Right label
-    doc.y = y;
-    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5)
-       .text(pair[1].label, x + 5, y + 6, { width: C3W - 8, lineBreak: false });
+    // Label 2 — light green background
+    filledRect(doc, x, y, C3W, RH, LIGHT_GREEN, MED_GREEN, 0.5);
+    doc.fillColor(DARK_GREEN).font("Helvetica-Bold").fontSize(8.5)
+       .text(pair[1].label, x + 5, y + 7, { width: C3W - 8, lineBreak: false });
     x += C3W;
 
-    // Right value
-    doc.y = y;
+    // Value 2 — white
+    filledRect(doc, x, y, C4W, RH, WHITE, MED_GREEN, 0.5);
     doc.fillColor(BLACK).font("Helvetica").fontSize(8.5)
-       .text(pair[1].value, x + 5, y + 6, { width: C4W - 8, lineBreak: false });
+       .text(pair[1].value, x + 5, y + 7, { width: C4W - 8, lineBreak: false });
 
     y += RH;
   });
@@ -185,51 +199,49 @@ function drawResultsTable(doc, results, startY) {
 
   const COLS = [160, 100, 165, 90]; // sum = 515 = CW
   const HDRS = ["Parameter", "Result Value", "Biological Reference", "Method"];
-  const RH   = 20;
+  const RH   = 22;
 
-  // Header row — bold text on white, full border
+  // Header row — dark green background
   let cx = MARGIN;
-  doc.rect(MARGIN, y, CW, RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+  filledRect(doc, MARGIN, y, CW, RH, DARK_GREEN);
   HDRS.forEach((h, i) => {
     if (i > 0) {
-      doc.moveTo(cx, y).lineTo(cx, y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+      doc.moveTo(cx, y).lineTo(cx, y + RH).strokeColor(WHITE).lineWidth(0.5).stroke();
     }
-    doc.y = y;
-    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-       .text(h, cx + 5, y + 6, { width: COLS[i] - 10, align: "center", lineBreak: false });
+    doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(9)
+       .text(h, cx + 5, y + 7, { width: COLS[i] - 10, align: "center", lineBreak: false });
     cx += COLS[i];
   });
   y += RH;
 
-  // Data rows
-  results.forEach((r) => {
-    const status  = statusFor(r);
-    const unit    = r.test_type_unit || r.unit || "";
-    const resVal  = r.value_text
+  // Data rows — alternating subtle backgrounds
+  results.forEach((r, rowIdx) => {
+    const status      = statusFor(r);
+    const unit        = r.test_type_unit || r.unit || "";
+    const resVal      = r.value_text
       ? r.value_text
       : (r.value_num != null ? String(r.value_num) : "-");
     const resDisplay  = unit ? `${resVal} ${unit}` : resVal;
-    const isAbnormal  = status && status !== "NORMAL" && status !== "NEGATIVE";
-    // Abnormal values shown in bold; no color change — plain black
-    const resBold = isAbnormal;
+    const rowBg       = rowIdx % 2 === 0 ? WHITE : "#F4FAF7";
+    const resColor    = status ? statusColor(status) : BLACK;
 
     const cells = [
-      { text: r.test_type_name || "-", bold: false, align: "left"   },
-      { text: resDisplay,              bold: resBold, align: "center" },
-      { text: bioReference(r),         bold: false, align: "center" },
-      { text: "-",                     bold: false, align: "center" },
+      { text: r.test_type_name || "-", color: BLACK,    align: "left"   },
+      { text: resDisplay,              color: resColor,  align: "center" },
+      { text: bioReference(r),         color: GRAY,      align: "center" },
+      { text: "-",                     color: GRAY,      align: "center" },
     ];
 
     cx = MARGIN;
-    doc.rect(MARGIN, y, CW, RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+    filledRect(doc, MARGIN, y, CW, RH, rowBg, MED_GREEN, 0.3);
     cells.forEach((cell, i) => {
       if (i > 0) {
-        doc.moveTo(cx, y).lineTo(cx, y + RH).strokeColor(BORDER).lineWidth(0.5).stroke();
+        doc.moveTo(cx, y).lineTo(cx, y + RH).strokeColor(MED_GREEN).lineWidth(0.3).stroke();
       }
-      doc.y = y;
-      doc.fillColor(BLACK)
-         .font(cell.bold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
-         .text(cell.text, cx + 5, y + 6,
+      const isBold = i === 1 && status && status !== "NORMAL" && status !== "NEGATIVE";
+      doc.fillColor(cell.color)
+         .font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
+         .text(cell.text, cx + 5, y + 7,
            { width: COLS[i] - 10, align: cell.align, lineBreak: false });
       cx += COLS[i];
     });
@@ -243,7 +255,7 @@ function drawResultsTable(doc, results, startY) {
 
 function drawFooter(doc, y) {
   y += 12;
-  hline(doc, y, 0.5);
+  hline(doc, y, 1, MED_GREEN);
   y += 8;
 
   const lines = [
@@ -253,15 +265,13 @@ function drawFooter(doc, y) {
   ];
 
   lines.forEach((line) => {
-    doc.y = y;
     doc.fillColor(GRAY).font("Helvetica").fontSize(8)
        .text(line, MARGIN, y, { width: CW, lineBreak: false });
     y += 13;
   });
 
   y += 4;
-  doc.y = y;
-  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+  doc.fillColor(DARK_GREEN).font("Helvetica-Bold").fontSize(9)
      .text("THIS IS A SYSTEM GENERATED REPORT", MARGIN, y,
        { width: CW, align: "center", lineBreak: false });
 
@@ -272,7 +282,6 @@ function drawFooter(doc, y) {
 
 function stampPageNum(doc, pageNum, totalPages) {
   const py = PAGE_H - 18;
-  doc.y = py;
   doc.fillColor(GRAY).font("Helvetica").fontSize(7.5)
      .text(`Page ${pageNum} of ${totalPages}`, MARGIN, py,
        { width: CW, align: "right", lineBreak: false });
@@ -281,7 +290,7 @@ function stampPageNum(doc, pageNum, totalPages) {
 // ── Exported generators ────────────────────────────────────────────────────────
 
 /**
- * Session report — single page, plain layout.
+ * Session report — single page, green-themed layout.
  * @param {object} session - from getTestSessionFlat
  * @returns {Promise<Buffer>}
  */

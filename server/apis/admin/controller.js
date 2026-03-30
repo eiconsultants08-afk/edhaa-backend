@@ -1,6 +1,7 @@
 // controller.js
 import { addData, failureResponse, getPaginationInfo, hashPassword } from "../../utils.js";
-import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat } from "../../database/db.js";
+import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions } from "../../database/db.js";
+import moment from 'moment-timezone';
 import { constants } from "../../constants.js";
 import { emitToUser } from "../../socket.js";
 import { generateSessionReportPdf } from "../../pdf/reportGenerator.js";
@@ -614,6 +615,108 @@ export async function getSessionReportAdmin(req, res) {
     return res.status(200).send({ status: 200, data: { pdf_base64 } });
   } catch (err) {
     console.error("getSessionReportAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+/** GET /admin/analytics/overview — KPI cards */
+export async function getAnalyticsOverviewAdmin(req, res) {
+  try {
+    const admin = await getAdminContext(req.user_id, res);
+    if (!admin) return;
+    const data = await getAnalyticsOverview(admin.org_id);
+    return res.status(200).send({ status: 200, data });
+  } catch (err) {
+    console.error("getAnalyticsOverviewAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+/** GET /admin/analytics/charts — all chart datasets in one call, optionally date-filtered */
+export async function getAnalyticsChartsAdmin(req, res) {
+  try {
+    const admin = await getAdminContext(req.user_id, res);
+    if (!admin) return;
+    const org_id = admin.org_id;
+
+    const IST = 'Asia/Kolkata';
+    const { startDate: rawStart, endDate: rawEnd } = req.query;
+
+    const startMoment = rawStart
+      ? moment.tz(rawStart, 'YYYY-MM-DD', IST).startOf('day')
+      : moment.tz(IST).subtract(30, 'days').startOf('day');
+    const endMoment = rawEnd
+      ? moment.tz(rawEnd, 'YYYY-MM-DD', IST).endOf('day')
+      : moment.tz(IST).endOf('day');
+
+    const startDate = startMoment.toISOString();
+    const endDate   = endMoment.toISOString();
+
+    const settle = fn => fn.then(v => v).catch(err => { console.error("Analytics query failed:", err.message); return []; });
+
+    const [
+      session_status,
+      daily_tests,
+      tests_per_device,
+      test_type_distribution,
+      abnormal_rates,
+      weekly_patients,
+      technician_activity,
+      patient_gender,
+    ] = await Promise.all([
+      settle(getAnalyticsSessionStatus(org_id, startDate, endDate)),
+      settle(getAnalyticsDailyTests(org_id, startDate, endDate)),
+      settle(getAnalyticsTestsPerDevice(org_id, startDate, endDate)),
+      settle(getAnalyticsTestTypeDistribution(org_id, startDate, endDate)),
+      settle(getAnalyticsAbnormalRates(org_id, startDate, endDate)),
+      settle(getAnalyticsWeeklyPatients(org_id, startDate, endDate)),
+      settle(getAnalyticsTechnicianActivity(org_id, startDate, endDate)),
+      settle(getAnalyticsPatientGender(org_id)),
+    ]);
+
+    return res.status(200).send({
+      status: 200,
+      data: {
+        session_status,
+        daily_tests,
+        tests_per_device,
+        test_type_distribution,
+        abnormal_rates,
+        weekly_patients,
+        technician_activity,
+        patient_gender,
+      },
+    });
+  } catch (err) {
+    console.error("getAnalyticsChartsAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+/** GET /admin/analytics/test-type-sessions — drill-down sessions for a test type */
+export async function getTestTypeSessionsAdmin(req, res) {
+  try {
+    const admin = await getAdminContext(req.user_id, res);
+    if (!admin) return;
+    const org_id = admin.org_id;
+
+    const IST = 'Asia/Kolkata';
+    const { testTypeName, startDate: rawStart, endDate: rawEnd } = req.query;
+    if (!testTypeName) return res.status(400).send({ status: 400, message: "testTypeName is required" });
+
+    const startDate = rawStart
+      ? moment.tz(rawStart, 'YYYY-MM-DD', IST).startOf('day').toISOString()
+      : moment.tz(IST).subtract(30, 'days').startOf('day').toISOString();
+    const endDate = rawEnd
+      ? moment.tz(rawEnd, 'YYYY-MM-DD', IST).endOf('day').toISOString()
+      : moment.tz(IST).endOf('day').toISOString();
+
+    const sessions = await getAnalyticsTestTypeSessions(org_id, testTypeName, startDate, endDate);
+    return res.status(200).send({ status: 200, data: sessions });
+  } catch (err) {
+    console.error("getTestTypeSessionsAdmin error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }

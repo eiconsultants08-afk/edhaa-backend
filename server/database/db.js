@@ -274,6 +274,13 @@ export async function getPatientByIdFlat(conditions) {
 }
 
 export async function createPatient(data) {
+  if (!data.patient_code) {
+    const rows = await sequelize.query(
+      "SELECT nextval('patients_patient_code_seq')::int AS code",
+      { type: sequelize.QueryTypes.SELECT }
+    );
+    data.patient_code = rows[0]?.code || null;
+  }
   return Patients.create(data);
 }
 
@@ -594,4 +601,180 @@ export async function countUnfilledResults(history_id) {
       value_text: null,
     },
   });
+}
+
+// ── Analytics ────────────────────────────────────────────────────────────────
+
+/** KPI overview — patient/session/device totals for the org */
+export async function getAnalyticsOverview(org_id) {
+  const rows = await sequelize.query(`
+    SELECT
+      (SELECT COUNT(*)::int FROM patients       WHERE org_id = :org_id)                                                      AS total_patients,
+      (SELECT COUNT(*)::int FROM test_histories WHERE org_id = :org_id)                                                      AS total_sessions,
+      (SELECT COUNT(*)::int FROM test_histories WHERE org_id = :org_id AND status = 'COMPLETED')                             AS completed_sessions,
+      (SELECT COUNT(*)::int FROM test_histories WHERE org_id = :org_id AND status = 'PENDING')                               AS pending_sessions,
+      (SELECT COUNT(*)::int FROM devices        WHERE org_id = :org_id)                                                      AS total_devices,
+      (SELECT COUNT(*)::int FROM devices        WHERE org_id = :org_id AND assigned_to_user_id IS NOT NULL)                  AS assigned_devices,
+      (SELECT COUNT(*)::int FROM test_histories WHERE org_id = :org_id AND DATE(test_date AT TIME ZONE 'UTC') = CURRENT_DATE) AS sessions_today
+  `, { replacements: { org_id }, type: sequelize.QueryTypes.SELECT });
+  return rows[0] || {};
+}
+
+/** Session completed/pending counts within a date range */
+export async function getAnalyticsSessionStatus(org_id, startDate, endDate) {
+  const rows = await sequelize.query(`
+    SELECT
+      SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END)::int AS completed,
+      SUM(CASE WHEN status = 'PENDING'   THEN 1 ELSE 0 END)::int AS pending
+    FROM test_histories
+    WHERE org_id    = :org_id
+      AND test_date >= :startDate::timestamptz
+      AND test_date <= :endDate::timestamptz
+  `, { replacements: { org_id, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
+  return rows[0] || { completed: 0, pending: 0 };
+}
+
+/** Daily completed test-sessions within a date range, ordered ASC */
+export async function getAnalyticsDailyTests(org_id, startDate, endDate) {
+  return sequelize.query(`
+    SELECT
+      TO_CHAR(DATE(th.test_date AT TIME ZONE 'UTC'), 'DD/MM') AS label,
+      COUNT(*)::int AS count
+    FROM test_histories th
+    WHERE th.org_id    = :org_id
+      AND th.status    = 'COMPLETED'
+      AND th.test_date >= :startDate::timestamptz
+      AND th.test_date <= :endDate::timestamptz
+    GROUP BY DATE(th.test_date AT TIME ZONE 'UTC')
+    ORDER BY DATE(th.test_date AT TIME ZONE 'UTC') ASC
+  `, { replacements: { org_id, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
+}
+
+/** Completed test count per device (top 8) within a date range */
+export async function getAnalyticsTestsPerDevice(org_id, startDate, endDate) {
+  return sequelize.query(`
+    SELECT
+      COALESCE(d.serial_no, th.device_id, 'Unknown') AS label,
+      COUNT(*)::int AS count
+    FROM test_histories th
+    LEFT JOIN devices d ON th.device_id = d.device_id
+    WHERE th.org_id    = :org_id
+      AND th.device_id IS NOT NULL
+      AND th.test_date >= :startDate::timestamptz
+      AND th.test_date <= :endDate::timestamptz
+    GROUP BY th.device_id, d.serial_no
+    ORDER BY count DESC
+    LIMIT 8
+  `, { replacements: { org_id, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
+}
+
+/** Result count grouped by test type (top 8) within a date range */
+export async function getAnalyticsTestTypeDistribution(org_id, startDate, endDate) {
+  return sequelize.query(`
+    SELECT tt.name AS label, COUNT(*)::int AS count
+    FROM patient_test_results ptr
+    JOIN test_types    tt ON ptr.test_type_id  = tt.test_type_id
+    JOIN test_histories th ON ptr.history_id   = th.history_id
+    WHERE ptr.org_id    = :org_id
+      AND th.test_date >= :startDate::timestamptz
+      AND th.test_date <= :endDate::timestamptz
+    GROUP BY tt.test_type_id, tt.name
+    ORDER BY count DESC
+    LIMIT 8
+  `, { replacements: { org_id, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
+}
+
+/** Abnormal result rate per test type (top 6) within a date range */
+export async function getAnalyticsAbnormalRates(org_id, startDate, endDate) {
+  return sequelize.query(`
+    SELECT
+      tt.name AS label,
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (
+        WHERE ptr.value_num < tt.normal_min OR ptr.value_num > tt.normal_max
+      )::int AS abnormal
+    FROM patient_test_results ptr
+    JOIN test_types    tt ON ptr.test_type_id = tt.test_type_id
+    JOIN test_histories th ON ptr.history_id  = th.history_id
+    WHERE ptr.org_id      = :org_id
+      AND ptr.value_num   IS NOT NULL
+      AND tt.normal_min   IS NOT NULL
+      AND tt.normal_max   IS NOT NULL
+      AND th.test_date   >= :startDate::timestamptz
+      AND th.test_date   <= :endDate::timestamptz
+    GROUP BY tt.test_type_id, tt.name
+    HAVING COUNT(*) > 0
+    ORDER BY (COUNT(*) FILTER (WHERE ptr.value_num < tt.normal_min OR ptr.value_num > tt.normal_max)) DESC
+    LIMIT 6
+  `, { replacements: { org_id, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
+}
+
+/** New patients registered within a date range, grouped by week */
+export async function getAnalyticsWeeklyPatients(org_id, startDate, endDate) {
+  return sequelize.query(`
+    SELECT
+      TO_CHAR(DATE_TRUNC('week', created_at AT TIME ZONE 'UTC'), 'DD/MM') AS label,
+      COUNT(*)::int AS count
+    FROM patients
+    WHERE org_id      = :org_id
+      AND created_at >= :startDate::timestamptz
+      AND created_at <= :endDate::timestamptz
+    GROUP BY DATE_TRUNC('week', created_at AT TIME ZONE 'UTC')
+    ORDER BY DATE_TRUNC('week', created_at AT TIME ZONE 'UTC') ASC
+  `, { replacements: { org_id, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
+}
+
+/** Completed sessions per technician (top 6) within a date range */
+export async function getAnalyticsTechnicianActivity(org_id, startDate, endDate) {
+  return sequelize.query(`
+    SELECT
+      COALESCE(u.name, 'Unknown') AS label,
+      COUNT(*)::int AS count
+    FROM test_histories th
+    LEFT JOIN users u ON th.entered_by_user_id = u.user_id
+    WHERE th.org_id    = :org_id
+      AND th.status    = 'COMPLETED'
+      AND th.test_date >= :startDate::timestamptz
+      AND th.test_date <= :endDate::timestamptz
+    GROUP BY u.user_id, u.name
+    ORDER BY count DESC
+    LIMIT 6
+  `, { replacements: { org_id, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
+}
+
+/** Gender distribution of all patients in the org */
+export async function getAnalyticsPatientGender(org_id) {
+  return sequelize.query(`
+    SELECT
+      COALESCE(gender::text, 'Unknown') AS label,
+      COUNT(*)::int AS count
+    FROM patients
+    WHERE org_id = :org_id
+    GROUP BY gender
+    ORDER BY count DESC
+  `, { replacements: { org_id }, type: sequelize.QueryTypes.SELECT });
+}
+
+/** Sessions for a specific test type within a date range (drill-down) */
+export async function getAnalyticsTestTypeSessions(org_id, testTypeName, startDate, endDate) {
+  return sequelize.query(`
+    SELECT
+      th.history_id,
+      p.name                        AS patient_name,
+      COALESCE(u.name, 'Unknown')   AS technician_name,
+      th.test_date,
+      th.status
+    FROM patient_test_results ptr
+    JOIN test_types    tt ON ptr.test_type_id = tt.test_type_id
+    JOIN test_histories th ON ptr.history_id  = th.history_id
+    JOIN patients       p  ON th.patient_id   = p.patient_id
+    LEFT JOIN users     u  ON th.entered_by_user_id = u.user_id
+    WHERE ptr.org_id    = :org_id
+      AND tt.name        = :testTypeName
+      AND th.test_date  >= :startDate::timestamptz
+      AND th.test_date  <= :endDate::timestamptz
+    GROUP BY th.history_id, p.name, u.name, th.test_date, th.status
+    ORDER BY th.test_date DESC
+    LIMIT 50
+  `, { replacements: { org_id, testTypeName, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
 }
