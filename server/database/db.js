@@ -304,6 +304,12 @@ export async function getPatientTestHistory(limit, offset, conditions) {
     distinct: true,
     include: [
       {
+        model: Users,
+        as: "enteredBy",
+        attributes: ["user_id", "name", "username", "role"],
+        required: false,
+      },
+      {
         model: PatientTestResults,
         as: "results",
         required: false,
@@ -317,6 +323,9 @@ export async function getPatientTestHistory(limit, offset, conditions) {
               "male_min", "male_max",
               "female_min", "female_max",
               "threshold_operator", "threshold_value",
+              "category", "method_options", "reference_text",
+              "critical_low", "critical_high", "is_qualitative",
+              "specimen_type",
             ],
             required: false,
           },
@@ -372,6 +381,13 @@ export async function getPatientTestResults(limit, offset, conditions) {
         [sequelize.col("testType.female_max"), "female_max"],
         [sequelize.col("testType.threshold_operator"), "threshold_operator"],
         [sequelize.col("testType.threshold_value"), "threshold_value"],
+        [sequelize.col("testType.category"), "category"],
+        [sequelize.col("testType.method_options"), "method_options"],
+        [sequelize.col("testType.reference_text"), "reference_text"],
+        [sequelize.col("testType.critical_low"), "critical_low"],
+        [sequelize.col("testType.critical_high"), "critical_high"],
+        [sequelize.col("testType.is_qualitative"), "is_qualitative"],
+        [sequelize.col("testType.specimen_type"), "specimen_type"],
       ],
     },
   };
@@ -404,6 +420,13 @@ export async function getTestResultByIdFlat(result_id) {
         [sequelize.col("testType.female_max"), "female_max"],
         [sequelize.col("testType.threshold_operator"), "threshold_operator"],
         [sequelize.col("testType.threshold_value"), "threshold_value"],
+        [sequelize.col("testType.category"), "category"],
+        [sequelize.col("testType.method_options"), "method_options"],
+        [sequelize.col("testType.reference_text"), "reference_text"],
+        [sequelize.col("testType.critical_low"), "critical_low"],
+        [sequelize.col("testType.critical_high"), "critical_high"],
+        [sequelize.col("testType.is_qualitative"), "is_qualitative"],
+        [sequelize.col("testType.specimen_type"), "specimen_type"],
         [sequelize.col("patient.patient_code"), "patient_code"],
         [sequelize.col("patient.name"), "patient_name"],
         [sequelize.col("patient.gender"), "patient_gender"],
@@ -493,6 +516,13 @@ export async function getTestSessionFlat(history_id) {
         [sequelize.col("testType.male_max"), "male_max"],
         [sequelize.col("testType.female_min"), "female_min"],
         [sequelize.col("testType.female_max"), "female_max"],
+        [sequelize.col("testType.category"), "category"],
+        [sequelize.col("testType.method_options"), "method_options"],
+        [sequelize.col("testType.reference_text"), "reference_text"],
+        [sequelize.col("testType.critical_low"), "critical_low"],
+        [sequelize.col("testType.critical_high"), "critical_high"],
+        [sequelize.col("testType.is_qualitative"), "is_qualitative"],
+        [sequelize.col("testType.specimen_type"), "specimen_type"],
       ],
     },
   });
@@ -582,10 +612,14 @@ export async function getSessionCountByTechnician(user_id) {
 }
 
 export async function bulkUpdateTestResultsBySession(history_id, testsArray) {
-  // testsArray: [{ test_type_id, value_num?, value_text? }]
+  // testsArray: [{ test_type_id, value_num?, value_text?, method_used? }]
   const updates = testsArray.map(t =>
     PatientTestResults.update(
-      { value_num: t.value_num ?? null, value_text: t.value_text ?? null },
+      {
+        value_num:   t.value_num   ?? null,
+        value_text:  t.value_text  ?? null,
+        method_used: t.method_used ?? null,
+      },
       { where: { history_id, test_type_id: t.test_type_id } }
     )
   );
@@ -777,4 +811,67 @@ export async function getAnalyticsTestTypeSessions(org_id, testTypeName, startDa
     ORDER BY th.test_date DESC
     LIMIT 50
   `, { replacements: { org_id, testTypeName, startDate, endDate }, type: sequelize.QueryTypes.SELECT });
+}
+
+/**
+ * Returns all completed test sessions with full result context for CSV export.
+ * @param {string} org_id
+ * @param {string} startDate  — ISO string (start of day)
+ * @param {string} endDate    — ISO string (end of day)
+ * @param {string|null} entered_by_user_id — restrict to a single technician (optional)
+ */
+export async function getResultsForCsvExport(org_id, startDate, endDate, entered_by_user_id = null) {
+  const where = {
+    org_id,
+    status: "COMPLETED",
+    test_date: { [Op.between]: [startDate, endDate] },
+  };
+  if (entered_by_user_id) where.entered_by_user_id = entered_by_user_id;
+
+  return TestHistory.findAll({
+    where,
+    order: [["test_date", "ASC"]],
+    include: [
+      {
+        model: Users,
+        as: "enteredBy",
+        attributes: ["name", "username", "role"],
+        required: false,
+      },
+      {
+        model: Patients,
+        as: "patient",
+        attributes: ["name", "gender", "dob", "patient_code"],
+        required: false,
+      },
+      {
+        model: PatientTestResults,
+        as: "results",
+        required: false,
+        include: [
+          {
+            model: TestTypes,
+            as: "testType",
+            attributes: [
+              "name", "unit", "category",
+              "reference_text", "critical_low", "critical_high",
+              "normal_min", "normal_max",
+              "male_min", "male_max",
+              "female_min", "female_max",
+              "is_qualitative", "specimen_type",
+            ],
+            required: false,
+          },
+        ],
+      },
+    ],
+  });
+}
+
+export async function getOrgById(org_id) {
+  return Organization.findOne({
+    where: { org_id },
+    raw: true,
+    attributes: ["org_id", "org_name"],
+  });
 }

@@ -352,3 +352,125 @@ export async function checkIfFilesExist(bucket, directory) {
 
   return folder.Contents && folder.Contents.length > 0 ? true : false;
 }
+
+// ── Test results CSV builder ──────────────────────────────────────────────────
+// Converts an array of TestHistory Sequelize instances (with nested patient,
+// enteredBy, results → testType) into a CSV string (base64 encoded).
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function csvCalcAge(dob) {
+  if (!dob) return "-";
+  const b = new Date(dob);
+  if (isNaN(b.getTime())) return "-";
+  const now = new Date();
+  let age = now.getFullYear() - b.getFullYear();
+  if (
+    now.getMonth() < b.getMonth() ||
+    (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())
+  ) age--;
+  return age >= 0 ? String(age) : "-";
+}
+
+function csvFmtDate(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+function csvStatusFor(r, gender) {
+  if (r.value_text) return r.value_text;
+  if (r.value_num == null) return "-";
+  const v = Number(r.value_num);
+  const tt = r.testType || {};
+  const g = (gender || "").toUpperCase();
+  const min =
+    g === "MALE"   && tt.male_min   != null ? Number(tt.male_min)   :
+    g === "FEMALE" && tt.female_min != null ? Number(tt.female_min) :
+    tt.normal_min  != null ? Number(tt.normal_min) : null;
+  const max =
+    g === "MALE"   && tt.male_max   != null ? Number(tt.male_max)   :
+    g === "FEMALE" && tt.female_max != null ? Number(tt.female_max) :
+    tt.normal_max  != null ? Number(tt.normal_max) : null;
+  if (min != null && max != null) return v < min ? "LOW" : v > max ? "HIGH" : "NORMAL";
+  if (min == null && max != null) return v > max ? "HIGH" : "NORMAL";
+  if (min != null && max == null) return v < min ? "LOW"  : "NORMAL";
+  return "-";
+}
+
+function csvBioRef(tt, gender) {
+  if (!tt) return "-";
+  if (tt.reference_text) return tt.reference_text.split("\n")[0].trim();
+  const g = (gender || "").toUpperCase();
+  const unit = tt.unit || "";
+  const min =
+    g === "MALE"   && tt.male_min   != null ? Number(tt.male_min)   :
+    g === "FEMALE" && tt.female_min != null ? Number(tt.female_min) :
+    tt.normal_min  != null ? Number(tt.normal_min) : null;
+  const max =
+    g === "MALE"   && tt.male_max   != null ? Number(tt.male_max)   :
+    g === "FEMALE" && tt.female_max != null ? Number(tt.female_max) :
+    tt.normal_max  != null ? Number(tt.normal_max) : null;
+  if (min != null && max != null) return `${min} - ${max}${unit ? " " + unit : ""}`;
+  if (min == null && max != null) return `< ${max}${unit ? " " + unit : ""}`;
+  if (min != null && max == null) return `> ${min}${unit ? " " + unit : ""}`;
+  return "-";
+}
+
+export function buildTestResultsCsv(histories) {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+  const HEADERS = [
+    "Date", "Weekday", "Patient Name", "Patient ID", "Gender", "Age",
+    "Performed By", "Role", "Device ID", "Session Notes",
+    "Test Name", "Unit", "Category", "Method Used",
+    "Value", "Status", "Biological Reference", "Critical Low", "Critical High",
+  ];
+
+  const rows = [HEADERS.map(q).join(",")];
+
+  for (const h of histories) {
+    const raw = h.get ? h.get({ plain: true }) : h;
+    const d = new Date(raw.test_date);
+    const dateStr  = csvFmtDate(raw.test_date);
+    const weekday  = WEEKDAYS[d.getDay()];
+    const patient  = raw.patient  || {};
+    const enteredBy = raw.enteredBy || {};
+    const patientCode = patient.patient_code != null
+      ? String(patient.patient_code).padStart(5, "0") : "-";
+    const gender = patient.gender || "-";
+    const age    = csvCalcAge(patient.dob);
+    const performer = enteredBy.name || enteredBy.username || "-";
+    const role      = enteredBy.role || "-";
+    const deviceId  = raw.device_id || "-";
+    const notes     = (raw.notes || "").replace(/\n/g, " ");
+
+    const results = raw.results || [];
+    if (results.length === 0) {
+      rows.push([dateStr, weekday, patient.name || "-", patientCode, gender, age,
+        performer, role, deviceId, notes,
+        "-", "-", "-", "-", "-", "-", "-", "-", "-"].map(q).join(","));
+    } else {
+      for (const r of results) {
+        const tt   = r.testType || {};
+        const name = tt.name   || "-";
+        const unit = tt.unit   || "-";
+        const cat  = tt.category || "-";
+        const meth = r.method_used || "-";
+        const val  = r.value_text ?? (r.value_num != null ? String(r.value_num) : "-");
+        const status   = csvStatusFor(r, gender);
+        const bioRef   = csvBioRef(tt, gender);
+        const critLow  = tt.critical_low  != null ? String(tt.critical_low)  : "-";
+        const critHigh = tt.critical_high != null ? String(tt.critical_high) : "-";
+
+        rows.push([dateStr, weekday, patient.name || "-", patientCode, gender, age,
+          performer, role, deviceId, notes,
+          name, unit, cat, meth, val, status, bioRef, critLow, critHigh].map(q).join(","));
+      }
+    }
+  }
+
+  return Buffer.from(rows.join("\n"), "utf8").toString("base64");
+}

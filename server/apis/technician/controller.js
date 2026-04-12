@@ -18,9 +18,12 @@ import {
   updateTestResult as updateTestResultDb,
   getUserByCondition,
   countUnfilledResults,
+  getResultsForCsvExport,
+  getOrgById,
 } from "../../database/db.js";
-import { addData, failureResponse, getPaginationInfo } from "../../utils.js";
-import { generateTestReportPdf, generateSessionReportPdf } from "../../pdf/reportGenerator.js";
+import { addData, buildTestResultsCsv, failureResponse, getPaginationInfo } from "../../utils.js";
+import moment from "moment-timezone";
+import { generateTestReportPdf, generateSessionReportPdf, generateBulkReportPdf } from "../../pdf/reportGenerator.js";
 
 export async function getAllPatients(req, res) {
   try {
@@ -576,6 +579,99 @@ export async function addSessionResults(req, res) {
     return res.status(200).send({ status: 200, data: rows, message: "Results added to session" });
   } catch (err) {
     console.error("addSessionResults error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function generateCsvReportTechnician(req, res) {
+  try {
+    const { user_id } = req;
+
+    if (!user_id) return failureResponse(res, 401, "Unauthorized");
+
+    const technician = await getUserByCondition({ user_id });
+    if (!technician) return failureResponse(res, 404, "User not found");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+
+    const IST = "Asia/Kolkata";
+    const { startDate: rawStart, endDate: rawEnd } = req.query;
+
+    if (!rawStart || !rawEnd)
+      return failureResponse(res, 400, "startDate and endDate query params are required (YYYY-MM-DD)");
+
+    const startDate = moment.tz(rawStart, "YYYY-MM-DD", IST).startOf("day").toISOString();
+    const endDate   = moment.tz(rawEnd,   "YYYY-MM-DD", IST).endOf("day").toISOString();
+
+    const histories = await getResultsForCsvExport(
+      technician.org_id,
+      startDate,
+      endDate,
+      technician.user_id,
+    );
+
+    const csv_base64 = buildTestResultsCsv(histories);
+
+    return res.status(200).send({
+      status: 200,
+      data: { csv_base64, filename: `report_${rawStart}_to_${rawEnd}.csv` },
+      message: `${histories.length} sessions exported`,
+    });
+  } catch (err) {
+    console.error("generateCsvReportTechnician error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function generatePdfReportTechnician(req, res) {
+  try {
+    const { user_id } = req;
+
+    if (!user_id) return failureResponse(res, 401, "Unauthorized");
+
+    const technician = await getUserByCondition({ user_id });
+    if (!technician) return failureResponse(res, 404, "User not found");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+
+    const IST = "Asia/Kolkata";
+    const { startDate: rawStart, endDate: rawEnd } = req.query;
+
+    if (!rawStart || !rawEnd)
+      return failureResponse(res, 400, "startDate and endDate query params are required (YYYY-MM-DD)");
+
+    const startDate = moment.tz(rawStart, "YYYY-MM-DD", IST).startOf("day").toISOString();
+    const endDate   = moment.tz(rawEnd,   "YYYY-MM-DD", IST).endOf("day").toISOString();
+
+    const histories = await getResultsForCsvExport(
+      technician.org_id,
+      startDate,
+      endDate,
+      technician.user_id,
+    );
+
+    const org = await getOrgById(technician.org_id);
+
+    const pdfBuffer = await generateBulkReportPdf(histories, {
+      orgName:        org?.org_name || "EDHAA Diagnostic",
+      deptName:       "",
+      startDate:      rawStart,
+      endDate:        rawEnd,
+      performerLabel: `Technician: ${technician.name || technician.username}`,
+    });
+
+    const pdf_base64 = pdfBuffer.toString("base64");
+    const filename   = `report_${rawStart}_to_${rawEnd}.pdf`;
+
+    return res.status(200).send({
+      status: 200,
+      data: { pdf_base64, filename },
+      message: `${histories.length} sessions exported`,
+    });
+  } catch (err) {
+    console.error("generatePdfReportTechnician error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }

@@ -44,6 +44,11 @@ const PatientTestResults = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+
+    method_used: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
   },
   {
     timestamps: true,

@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import { checkAuthorization, checkIfAdmin } from '../../middleware/auth.js';
-import { addDevice, addTechnician, assignDevice, getAllDevices, getAllTechnicians, getDeviceByDeviceId, getDevicesNotAssignToTechnician, getTechnicianDetail, removeTechnician, getAllPatientsAdmin, getPatientByIdAdmin, addPatientAdmin, updatePatientAdmin, getPatientTestsAdmin, getSessionReportAdmin, getAnalyticsOverviewAdmin, getAnalyticsChartsAdmin, getTestTypeSessionsAdmin } from './controller.js';
+import { addDevice, addTechnician, assignDevice, getAllDevices, getAllTechnicians, getDeviceByDeviceId, getDevicesNotAssignToTechnician, getTechnicianDetail, removeTechnician, getAllPatientsAdmin, getPatientByIdAdmin, addPatientAdmin, updatePatientAdmin, getPatientTestsAdmin, getSessionReportAdmin, getAnalyticsOverviewAdmin, getAnalyticsChartsAdmin, getTestTypeSessionsAdmin, getTestTypesAdmin, registerTestSessionAdmin, completeTestSessionAdmin, generateCsvReportAdmin, generatePdfReportAdmin } from './controller.js';
 
 // // list of users
 router.get("/devices/:rows/:page?", checkAuthorization, checkIfAdmin(), getAllDevices); //...done
@@ -27,6 +27,15 @@ router.get("/session/:history_id/report", checkAuthorization, checkIfAdmin(), ge
 router.get("/analytics/overview",            checkAuthorization, checkIfAdmin(), getAnalyticsOverviewAdmin);
 router.get("/analytics/charts",              checkAuthorization, checkIfAdmin(), getAnalyticsChartsAdmin);
 router.get("/analytics/test-type-sessions",  checkAuthorization, checkIfAdmin(), getTestTypeSessionsAdmin);
+
+// Admin test sessions (admin performs tests like a technician)
+router.get("/test-types",                          checkAuthorization, checkIfAdmin(), getTestTypesAdmin);
+router.post("/patient/register-test",              checkAuthorization, checkIfAdmin(), registerTestSessionAdmin);
+router.put("/session/:history_id/complete",        checkAuthorization, checkIfAdmin(), completeTestSessionAdmin);
+
+// Reports (CSV + PDF)
+router.get("/reports/csv",                         checkAuthorization, checkIfAdmin(), generateCsvReportAdmin);
+router.get("/reports/pdf",                         checkAuthorization, checkIfAdmin(), generatePdfReportAdmin);
 
 // // add user
 // router.post("/user/add", checkAuthorization, checkIfAdmin(), addUser);

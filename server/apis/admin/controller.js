@@ -1,10 +1,10 @@
 // controller.js
-import { addData, failureResponse, getPaginationInfo, hashPassword } from "../../utils.js";
-import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions } from "../../database/db.js";
+import { addData, failureResponse, getPaginationInfo, hashPassword, buildTestResultsCsv } from "../../utils.js";
+import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions, bulkCreatePatientTestResults, bulkUpdateTestResultsBySession, createTestHistory, getTestTypesByIds, getTestTypesByOrg, updateTestHistory as updateTestHistoryDb, getResultsForCsvExport, getOrgById } from "../../database/db.js";
 import moment from 'moment-timezone';
 import { constants } from "../../constants.js";
 import { emitToUser } from "../../socket.js";
-import { generateSessionReportPdf } from "../../pdf/reportGenerator.js";
+import { generateSessionReportPdf, generateBulkReportPdf } from "../../pdf/reportGenerator.js";
 
 
 
@@ -717,6 +717,186 @@ export async function getTestTypeSessionsAdmin(req, res) {
     return res.status(200).send({ status: 200, data: sessions });
   } catch (err) {
     console.error("getTestTypeSessionsAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+// ── Admin test session routes ──────────────────────────────────────────────────
+// Admin can register and perform tests just like a technician.
+// entered_by_user_id will be the admin's user_id; their role (ADMIN) in the
+// users table is what the front-end uses to show "performed by Admin".
+
+export async function getTestTypesAdmin(req, res) {
+  try {
+    const admin = await getAdminContext(req.user_id, res);
+    if (!admin) return;
+    const types = await getTestTypesByOrg(admin.org_id);
+    return res.status(200).send({ status: 200, data: types, message: "Test types" });
+  } catch (err) {
+    console.error("getTestTypesAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function registerTestSessionAdmin(req, res) {
+  try {
+    const admin = await getAdminContext(req.user_id, res);
+    if (!admin) return;
+
+    const { patient_id, test_date, device_id, notes, test_type_ids } = req.body || {};
+
+    if (!patient_id)   return failureResponse(res, 400, "patient_id required");
+    if (!test_date)    return failureResponse(res, 400, "test_date required");
+    if (!Array.isArray(test_type_ids) || test_type_ids.length === 0)
+      return failureResponse(res, 400, "test_type_ids array required");
+
+    const patient = await getPatientByIdFlat({ patient_id });
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+    if (patient.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
+
+    const testTypes = await getTestTypesByIds(test_type_ids);
+    if (testTypes.length !== test_type_ids.length)
+      return failureResponse(res, 400, "Invalid test_type_id");
+    for (const tt of testTypes) {
+      if (tt.org_id !== admin.org_id) return failureResponse(res, 403, "Test type access denied");
+    }
+
+    const history = await createTestHistory({
+      patient_id,
+      org_id: admin.org_id,
+      department_id: admin.department_id || null,
+      device_id: device_id || null,
+      entered_by_user_id: admin.user_id,
+      test_date,
+      notes: notes ?? null,
+      status: "PENDING",
+    });
+
+    const insertData = test_type_ids.map(id => ({
+      history_id:   history.history_id,
+      patient_id,
+      org_id:       admin.org_id,
+      test_type_id: id,
+      value_num:    null,
+      value_text:   null,
+    }));
+    const results = await bulkCreatePatientTestResults(insertData);
+
+    return res.status(201).send({
+      status: 201,
+      data: { history, results },
+      message: "Test session registered successfully",
+    });
+  } catch (err) {
+    console.error("registerTestSessionAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function completeTestSessionAdmin(req, res) {
+  try {
+    const admin = await getAdminContext(req.user_id, res);
+    if (!admin) return;
+
+    const { history_id } = req.params;
+    if (!history_id) return failureResponse(res, 400, "history_id required");
+
+    const { tests, notes, complete } = req.body || {};
+
+    const session = await getTestSessionFlat(history_id);
+    if (!session) return failureResponse(res, 404, "Session not found");
+    if (session.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
+    if (session.status === "COMPLETED") return failureResponse(res, 400, "Session already completed");
+
+    if (Array.isArray(tests) && tests.length > 0) {
+      const filledTests = tests.filter(t =>
+        t.value_num != null || (t.value_text != null && t.value_text !== "")
+      );
+      if (filledTests.length > 0) {
+        await bulkUpdateTestResultsBySession(history_id, filledTests);
+      }
+    }
+
+    const newStatus = complete === true ? "COMPLETED" : "PENDING";
+    const historyUpdate = { status: newStatus };
+    if (notes !== undefined) historyUpdate.notes = notes;
+    const updated = await updateTestHistoryDb(history_id, historyUpdate);
+
+    return res.status(200).send({
+      status: 200,
+      data: updated,
+      message: newStatus === "COMPLETED" ? "Test session completed" : "Test values saved",
+    });
+  } catch (err) {
+    console.error("completeTestSessionAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function generateCsvReportAdmin(req, res) {
+  try {
+    const admin = await getAdminContext(req.user_id, res);
+    if (!admin) return;
+
+    const IST = "Asia/Kolkata";
+    const { startDate: rawStart, endDate: rawEnd } = req.query;
+
+    const startDate = rawStart
+      ? moment.tz(rawStart, "YYYY-MM-DD", IST).startOf("day").toISOString()
+      : moment.tz(IST).subtract(30, "days").startOf("day").toISOString();
+    const endDate = rawEnd
+      ? moment.tz(rawEnd, "YYYY-MM-DD", IST).endOf("day").toISOString()
+      : moment.tz(IST).endOf("day").toISOString();
+
+    const histories = await getResultsForCsvExport(admin.org_id, startDate, endDate);
+    const csv_base64 = buildTestResultsCsv(histories);
+
+    return res.status(200).send({
+      status: 200,
+      data: { csv_base64, filename: `report_${rawStart || "all"}_to_${rawEnd || "today"}.csv` },
+      message: `${histories.length} sessions exported`,
+    });
+  } catch (err) {
+    console.error("generateCsvReportAdmin error:", err);
+    return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function generatePdfReportAdmin(req, res) {
+  try {
+    const admin = await getAdminContext(req.user_id, res);
+    if (!admin) return;
+
+    const IST = "Asia/Kolkata";
+    const { startDate: rawStart, endDate: rawEnd } = req.query;
+
+    const startDate = rawStart
+      ? moment.tz(rawStart, "YYYY-MM-DD", IST).startOf("day").toISOString()
+      : moment.tz(IST).subtract(30, "days").startOf("day").toISOString();
+    const endDate = rawEnd
+      ? moment.tz(rawEnd, "YYYY-MM-DD", IST).endOf("day").toISOString()
+      : moment.tz(IST).endOf("day").toISOString();
+
+    const histories = await getResultsForCsvExport(admin.org_id, startDate, endDate);
+    const org = await getOrgById(admin.org_id);
+
+    const pdfBuffer = await generateBulkReportPdf(histories, {
+      orgName:        org?.org_name || "EDHAA Diagnostic",
+      deptName:       "",
+      startDate:      rawStart || "all",
+      endDate:        rawEnd   || "today",
+    });
+
+    const pdf_base64 = pdfBuffer.toString("base64");
+    const filename   = `report_${rawStart || "all"}_to_${rawEnd || "today"}.pdf`;
+
+    return res.status(200).send({
+      status: 200,
+      data: { pdf_base64, filename },
+      message: `${histories.length} sessions exported`,
+    });
+  } catch (err) {
+    console.error("generatePdfReportAdmin error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }

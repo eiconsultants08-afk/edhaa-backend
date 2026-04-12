@@ -99,6 +99,28 @@ async function startPostgres() {
     await sequelize.query(`UPDATE test_histories SET status = 'COMPLETED' WHERE status = 'PENDING' AND (SELECT COUNT(*) FROM patient_test_results WHERE patient_test_results.history_id = test_histories.history_id AND (patient_test_results.value_num IS NOT NULL OR patient_test_results.value_text IS NOT NULL)) > 0;`);
     console.log("✅ test_histories.status column patched (PENDING/COMPLETED)");
 
+    // BIO-CHEQ extended test_types fields
+    await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS category TEXT;`);
+    await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS method_options JSONB;`);
+    await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS reference_text TEXT;`);
+    await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS critical_low FLOAT;`);
+    await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS critical_high FLOAT;`);
+    await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS is_qualitative BOOLEAN NOT NULL DEFAULT false;`);
+    console.log("✅ test_types extended columns patched (BIO-CHEQ metadata)");
+
+    // method_used on individual test results
+    await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS method_used TEXT;`);
+    console.log("✅ patient_test_results.method_used column patched");
+
+    // specimen_type on test types (Blood / Urine / Saliva / Calculated)
+    await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS specimen_type TEXT;`);
+    console.log("✅ test_types.specimen_type column patched");
+
+    // Fix is_qualitative for any existing rows that use Positive/Negative unit
+    // (column was added with DEFAULT false, so pre-existing qualitative tests got false)
+    await sequelize.query(`UPDATE test_types SET is_qualitative = true WHERE LOWER(unit) LIKE '%positive%' AND is_qualitative = false;`);
+    console.log("✅ test_types.is_qualitative backfilled for Positive/Negative tests");
+
     await sequelize.sync();
     console.log("✅ Models synced!");
 

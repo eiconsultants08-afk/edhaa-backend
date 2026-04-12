@@ -7,20 +7,14 @@ const PAGE_H = 841.89;
 const MARGIN  = 40;
 const CW      = PAGE_W - 2 * MARGIN; // 515.28
 
-// Green palette
-const DARK_GREEN  = "#1A6B40";   // header band, dept banner
-const MED_GREEN   = "#11865B";   // section heads, table header
-const LIGHT_GREEN = "#E8F7EF";   // label columns in patient grid
-const WHITE       = "#FFFFFF";
-const BLACK       = "#000000";
-const GRAY        = "#555555";
+const WHITE = "#FFFFFF";
+const BLACK = "#000000";
+const GRAY  = "#666666";
 
-// Result status colours
-const COLOR_NORMAL   = "#11865B";
-const COLOR_HIGH     = "#B42318";
-const COLOR_LOW      = "#A05A00";
-const COLOR_POSITIVE = "#B42318";
-const COLOR_NEGATIVE = "#11865B";
+// Result status colours — the ONLY colours used; only in session/single-test reports
+const COLOR_NORMAL = "#11865B";  // green  — normal / negative
+const COLOR_HIGH   = "#B42318";  // red    — high / positive
+const COLOR_LOW    = "#A05A00";  // orange — low
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -37,36 +31,78 @@ function calcAge(dob) {
   return age >= 0 ? age : null;
 }
 
-function statusFor(r) {
-  if (r.value_text) {
+function statusFor(r, gender) {
+  if (r.is_qualitative || r.value_text) {
     const v = (r.value_text || "").toUpperCase();
-    if (v === "POSITIVE")  return "POSITIVE";
-    if (v === "NEGATIVE")  return "NEGATIVE";
-    return r.value_text;
+    if (v === "POSITIVE") return "POSITIVE";
+    if (v === "NEGATIVE") return "NEGATIVE";
+    return r.value_text || null;
   }
   if (r.value_num == null) return null;
-  const v   = Number(r.value_num);
-  const min = r.normal_min != null ? Number(r.normal_min) : null;
-  const max = r.normal_max != null ? Number(r.normal_max) : null;
+  const v = Number(r.value_num);
+  const g = (gender || "").toUpperCase();
+
+  const min =
+    g === "MALE"   && r.male_min   != null ? Number(r.male_min)   :
+    g === "FEMALE" && r.female_min != null ? Number(r.female_min) :
+    r.normal_min   != null ? Number(r.normal_min) : null;
+  const max =
+    g === "MALE"   && r.male_max   != null ? Number(r.male_max)   :
+    g === "FEMALE" && r.female_max != null ? Number(r.female_max) :
+    r.normal_max   != null ? Number(r.normal_max) : null;
+
   if (min != null && max != null) {
     if (v < min) return "LOW";
     if (v > max) return "HIGH";
     return "NORMAL";
   }
+  if (min == null && max != null) return v > max ? "HIGH" : "NORMAL";
+  if (min != null && max == null) return v < min ? "LOW"  : "NORMAL";
   return null;
 }
 
 function statusColor(status) {
-  if (status === "HIGH"     || status === "POSITIVE") return COLOR_HIGH;
-  if (status === "LOW")                                return COLOR_LOW;
-  if (status === "NORMAL"   || status === "NEGATIVE") return COLOR_NORMAL;
+  if (status === "HIGH"   || status === "POSITIVE") return COLOR_HIGH;
+  if (status === "LOW")                              return COLOR_LOW;
+  if (status === "NORMAL" || status === "NEGATIVE") return COLOR_NORMAL;
   return BLACK;
 }
 
-function bioReference(r) {
+function shortMethod(raw) {
+  if (!raw) return "-";
+  return raw
+    .replace(/\s+Method$/i, "")
+    .replace(/\s+Equation$/i, "")
+    .replace(/\s+Test$/i, "")
+    .trim();
+}
+
+function methodCell(r) {
+  const specimen = r.specimen_type || "";
+  const method   = shortMethod(r.method_used || r.method || "");
+  if (specimen === "Calculated") return "Calculated";
+  if (specimen) return `${specimen} | ${method}`;
+  return method || "-";
+}
+
+function bioReference(r, gender) {
+  if (r.reference_text) {
+    const firstLine = r.reference_text.split("\n")[0].trim();
+    if (firstLine) return firstLine;
+  }
   const unit = r.test_type_unit || r.unit || "";
-  if (r.normal_min != null && r.normal_max != null)
-    return `${r.normal_min} - ${r.normal_max}${unit ? " " + unit : ""}`;
+  const g = (gender || "").toUpperCase();
+  const min =
+    g === "MALE"   && r.male_min   != null ? Number(r.male_min)   :
+    g === "FEMALE" && r.female_min != null ? Number(r.female_min) :
+    r.normal_min   != null ? Number(r.normal_min) : null;
+  const max =
+    g === "MALE"   && r.male_max   != null ? Number(r.male_max)   :
+    g === "FEMALE" && r.female_max != null ? Number(r.female_max) :
+    r.normal_max   != null ? Number(r.normal_max) : null;
+  if (min != null && max != null) return `${min} - ${max}${unit ? " " + unit : ""}`;
+  if (min == null && max != null) return `< ${max}${unit ? " " + unit : ""}`;
+  if (min != null && max == null) return `> ${min}${unit ? " " + unit : ""}`;
   return "-";
 }
 
@@ -79,55 +115,47 @@ function fmtDate(iso) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-// ── Drawing helpers ────────────────────────────────────────────────────────────
+// ── Drawing primitives ─────────────────────────────────────────────────────────
 
 function hline(doc, y, lw = 0.5, color = BLACK) {
   doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y)
      .strokeColor(color).lineWidth(lw).stroke();
 }
 
-function filledRect(doc, x, y, w, h, fill, stroke = null, lw = 0.5) {
-  doc.rect(x, y, w, h).fillColor(fill).fill();
-  if (stroke) {
-    doc.rect(x, y, w, h).strokeColor(stroke).lineWidth(lw).stroke();
-  }
+function vline(doc, x, y1, y2, lw = 0.5, color = BLACK) {
+  doc.moveTo(x, y1).lineTo(x, y2)
+     .strokeColor(color).lineWidth(lw).stroke();
 }
 
-// ── Header — dark green band ───────────────────────────────────────────────────
+// ── Header — plain text, no fills ─────────────────────────────────────────────
 
 function drawHeader(doc, orgName, deptName) {
-  // Dark green org name band
-  const BAND_H = 38;
-  filledRect(doc, MARGIN, MARGIN, CW, BAND_H, DARK_GREEN);
-  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(17)
-     .text(orgName, MARGIN, MARGIN + 11, { width: CW, align: "center", lineBreak: false });
+  let y = MARGIN;
 
-  let y = MARGIN + BAND_H;
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(16)
+     .text(orgName, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+  y += 22;
 
-  // Department banner — medium green, slightly shorter
   if (deptName) {
-    const DEPT_H = 20;
-    filledRect(doc, MARGIN, y, CW, DEPT_H, MED_GREEN);
-    doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(9)
-       .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y + 6,
+    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+       .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y,
          { width: CW, align: "center", lineBreak: false });
-    y += DEPT_H;
+    y += 16;
   }
 
+  hline(doc, y, 1, BLACK);
   return y + 10;
 }
 
-// ── Section heading — green banner ─────────────────────────────────────────────
+// ── Section heading — bold centred text, no fills ──────────────────────────────
 
 function sectionHead(doc, label, y) {
-  const H = 18;
-  filledRect(doc, MARGIN, y, CW, H, MED_GREEN);
-  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(9)
-     .text(label, MARGIN + 6, y + 5, { width: CW - 12, lineBreak: false });
-  return y + H + 3;
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(10)
+     .text(label, MARGIN, y + 4, { width: CW, align: "center", lineBreak: false });
+  return y + 22;
 }
 
-// ── Patient info grid ──────────────────────────────────────────────────────────
+// ── Patient info grid — stroke-only borders ────────────────────────────────────
 
 function drawPatientInfo(doc, session, startY) {
   let y = sectionHead(doc, "PATIENT INFORMATION", startY) + 2;
@@ -136,8 +164,7 @@ function drawPatientInfo(doc, session, startY) {
   const ageSex = [age != null ? `${age} Yrs` : null, session.patient_gender]
                    .filter(Boolean).join(" / ") || "-";
   const code   = session.patient_code != null
-    ? String(session.patient_code).padStart(5, "0")
-    : "-";
+    ? String(session.patient_code).padStart(5, "0") : "-";
 
   const rows = [
     [
@@ -155,34 +182,46 @@ function drawPatientInfo(doc, session, startY) {
   ];
 
   const RH  = 22;
-  const C1W = 110; // label 1
-  const C2W = 148; // value 1
-  const C3W = 110; // label 2
-  const C4W = CW - C1W - C2W - C3W; // value 2
+  const C1W = 120;
+  const C2W = 138;
+  const C3W = 120;
+  const C4W = CW - C1W - C2W - C3W;
+  const totalH = rows.length * RH;
+  const topY   = y;
 
-  rows.forEach((pair) => {
+  // Outer border
+  doc.rect(MARGIN, topY, CW, totalH).strokeColor(BLACK).lineWidth(0.5).stroke();
+
+  // Vertical column dividers — full height
+  vline(doc, MARGIN + C1W,               topY, topY + totalH, 0.5, BLACK);
+  vline(doc, MARGIN + C1W + C2W,         topY, topY + totalH, 0.5, BLACK);
+  vline(doc, MARGIN + C1W + C2W + C3W,   topY, topY + totalH, 0.5, BLACK);
+
+  rows.forEach((pair, ri) => {
+    // Horizontal divider between rows (not before first)
+    if (ri > 0) {
+      doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y)
+         .strokeColor(BLACK).lineWidth(0.5).stroke();
+    }
+
     let x = MARGIN;
 
-    // Label 1 — light green background
-    filledRect(doc, x, y, C1W, RH, LIGHT_GREEN, MED_GREEN, 0.5);
-    doc.fillColor(DARK_GREEN).font("Helvetica-Bold").fontSize(8.5)
+    // Label 1 — bold
+    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5)
        .text(pair[0].label, x + 5, y + 7, { width: C1W - 8, lineBreak: false });
     x += C1W;
 
-    // Value 1 — white
-    filledRect(doc, x, y, C2W, RH, WHITE, MED_GREEN, 0.5);
+    // Value 1
     doc.fillColor(BLACK).font("Helvetica").fontSize(8.5)
        .text(pair[0].value, x + 5, y + 7, { width: C2W - 8, lineBreak: false });
     x += C2W;
 
-    // Label 2 — light green background
-    filledRect(doc, x, y, C3W, RH, LIGHT_GREEN, MED_GREEN, 0.5);
-    doc.fillColor(DARK_GREEN).font("Helvetica-Bold").fontSize(8.5)
+    // Label 2 — bold
+    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5)
        .text(pair[1].label, x + 5, y + 7, { width: C3W - 8, lineBreak: false });
     x += C3W;
 
-    // Value 2 — white
-    filledRect(doc, x, y, C4W, RH, WHITE, MED_GREEN, 0.5);
+    // Value 2
     doc.fillColor(BLACK).font("Helvetica").fontSize(8.5)
        .text(pair[1].value, x + 5, y + 7, { width: C4W - 8, lineBreak: false });
 
@@ -192,59 +231,60 @@ function drawPatientInfo(doc, session, startY) {
   return y + 8;
 }
 
-// ── Results table ──────────────────────────────────────────────────────────────
+// ── Results table — stroke-only borders, optional result colouring ─────────────
+// colorResults=true  → red/green/orange for result values (session report)
+// colorResults=false → plain black for all text (bulk / date-range report)
 
-function drawResultsTable(doc, results, startY) {
+function drawResultsTable(doc, results, startY, patientGender, colorResults = true) {
   let y = sectionHead(doc, "LABORATORY TEST RESULTS", startY) + 2;
 
   const COLS = [160, 100, 165, 90]; // sum = 515 = CW
-  const HDRS = ["Parameter", "Result Value", "Biological Reference", "Method"];
+  const HDRS = ["Test", "Result Value", "Biological Reference", "Method"];
   const RH   = 22;
 
-  // Header row — dark green background
-  let cx = MARGIN;
-  filledRect(doc, MARGIN, y, CW, RH, DARK_GREEN);
+  // ── Header row ──────────────────────────────────────────────────────────────
+  doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.5).stroke();
+
+  let hx = MARGIN;
   HDRS.forEach((h, i) => {
-    if (i > 0) {
-      doc.moveTo(cx, y).lineTo(cx, y + RH).strokeColor(WHITE).lineWidth(0.5).stroke();
-    }
-    doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(9)
-       .text(h, cx + 5, y + 7, { width: COLS[i] - 10, align: "center", lineBreak: false });
-    cx += COLS[i];
+    if (i > 0) vline(doc, hx, y, y + RH, 0.5, BLACK);
+    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+       .text(h, hx + 5, y + 7, { width: COLS[i] - 10, align: "center", lineBreak: false });
+    hx += COLS[i];
   });
   y += RH;
 
-  // Data rows — alternating subtle backgrounds
+  // ── Data rows ───────────────────────────────────────────────────────────────
   results.forEach((r, rowIdx) => {
-    const status      = statusFor(r);
-    const unit        = r.test_type_unit || r.unit || "";
-    const resVal      = r.value_text
+    const status     = statusFor(r, patientGender);
+    const unit       = r.test_type_unit || r.unit || "";
+    const rawVal     = r.value_text != null
       ? r.value_text
       : (r.value_num != null ? String(r.value_num) : "-");
-    const resDisplay  = unit ? `${resVal} ${unit}` : resVal;
-    const rowBg       = rowIdx % 2 === 0 ? WHITE : "#F4FAF7";
-    const resColor    = status ? statusColor(status) : BLACK;
+    const resDisplay = (unit && unit !== "Positive/Negative") ? `${rawVal} ${unit}` : rawVal;
+    const resColor   = colorResults && status ? statusColor(status) : BLACK;
+
+    // Row border
+    doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.3).stroke();
 
     const cells = [
-      { text: r.test_type_name || "-", color: BLACK,    align: "left"   },
-      { text: resDisplay,              color: resColor,  align: "center" },
-      { text: bioReference(r),         color: GRAY,      align: "center" },
-      { text: "-",                     color: GRAY,      align: "center" },
+      { text: r.test_type_name || "-",        color: BLACK,    align: "left"   },
+      { text: resDisplay,                     color: resColor, align: "center" },
+      { text: bioReference(r, patientGender), color: GRAY,     align: "center" },
+      { text: methodCell(r),                  color: GRAY,     align: "center" },
     ];
 
-    cx = MARGIN;
-    filledRect(doc, MARGIN, y, CW, RH, rowBg, MED_GREEN, 0.3);
+    let cx = MARGIN;
     cells.forEach((cell, i) => {
-      if (i > 0) {
-        doc.moveTo(cx, y).lineTo(cx, y + RH).strokeColor(MED_GREEN).lineWidth(0.3).stroke();
-      }
-      const isBold = i === 1 && status && status !== "NORMAL" && status !== "NEGATIVE";
+      if (i > 0) vline(doc, cx, y, y + RH, 0.3, BLACK);
+      const isBold = colorResults && i === 1 && status && status !== "NORMAL" && status !== "NEGATIVE";
       doc.fillColor(cell.color)
          .font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
          .text(cell.text, cx + 5, y + 7,
            { width: COLS[i] - 10, align: cell.align, lineBreak: false });
       cx += COLS[i];
     });
+
     y += RH;
   });
 
@@ -255,7 +295,7 @@ function drawResultsTable(doc, results, startY) {
 
 function drawFooter(doc, y) {
   y += 12;
-  hline(doc, y, 1, MED_GREEN);
+  hline(doc, y, 1, BLACK);
   y += 8;
 
   const lines = [
@@ -271,7 +311,7 @@ function drawFooter(doc, y) {
   });
 
   y += 4;
-  doc.fillColor(DARK_GREEN).font("Helvetica-Bold").fontSize(9)
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
      .text("THIS IS A SYSTEM GENERATED REPORT", MARGIN, y,
        { width: CW, align: "center", lineBreak: false });
 
@@ -290,7 +330,7 @@ function stampPageNum(doc, pageNum, totalPages) {
 // ── Exported generators ────────────────────────────────────────────────────────
 
 /**
- * Session report — single page, green-themed layout.
+ * Session report — per-session, result values colour-coded.
  * @param {object} session - from getTestSessionFlat
  * @returns {Promise<Buffer>}
  */
@@ -311,7 +351,7 @@ export function generateSessionReportPdf(session) {
     let y = drawHeader(doc, orgName, deptName);
     y = drawPatientInfo(doc, session, y);
     y += 4;
-    y = drawResultsTable(doc, results, y);
+    y = drawResultsTable(doc, results, y, session.patient_gender, true);
     drawFooter(doc, y);
     stampPageNum(doc, 1, 1);
 
@@ -320,7 +360,170 @@ export function generateSessionReportPdf(session) {
 }
 
 /**
- * Single-result report.
+ * Bulk tabular report — all sessions in a date range, no result colouring.
+ * @param {Array}  histories - from getResultsForCsvExport (Sequelize instances)
+ * @param {object} meta      - { orgName, deptName, startDate, endDate, performerLabel }
+ * @returns {Promise<Buffer>}
+ */
+export function generateBulkReportPdf(histories, meta = {}) {
+  return new Promise((resolve, reject) => {
+    const orgName   = meta.orgName  || "EDHAA Diagnostic";
+    const deptName  = meta.deptName || "";
+    const label     = meta.startDate && meta.endDate
+      ? `${meta.startDate}  to  ${meta.endDate}`
+      : "All dates";
+    const performer = meta.performerLabel || "";
+
+    // Flatten histories → one row per test result
+    const rows = [];
+    for (const hist of histories) {
+      const h  = typeof hist.get === "function" ? hist.get({ plain: true }) : hist;
+      const p  = h.patient   || {};
+      const eb = h.enteredBy || {};
+      const results  = h.results || [];
+      const dateStr  = fmtDate(h.test_date);
+      const patientLabel = p.name
+        ? `${p.name}${p.patient_code ? " #" + String(p.patient_code).padStart(5, "0") : ""}`
+        : "-";
+      const genderStr = (p.gender || "").charAt(0).toUpperCase() || "-";
+
+      for (const res of results) {
+        const tt      = res.testType || {};
+        const unit    = tt.unit || "";
+        const rawVal  = res.value_text != null
+          ? res.value_text
+          : (res.value_num != null ? String(res.value_num) : "-");
+        const resDisplay = (unit && unit !== "Positive/Negative")
+          ? `${rawVal} ${unit}` : rawVal;
+
+        const flatR = {
+          is_qualitative: tt.is_qualitative,
+          value_text:     res.value_text,
+          value_num:      res.value_num,
+          normal_min: tt.normal_min, normal_max: tt.normal_max,
+          male_min:   tt.male_min,   male_max:   tt.male_max,
+          female_min: tt.female_min, female_max: tt.female_max,
+        };
+        const status    = statusFor(flatR, p.gender);
+        const methodStr = methodCell({
+          specimen_type: tt.specimen_type,
+          method_used:   res.method_used,
+          method:        tt.method,
+        });
+
+        rows.push({
+          dateStr, patientLabel, genderStr,
+          testName: tt.name || "-",
+          resDisplay, status: status || "-",
+          methodStr,
+        });
+      }
+    }
+
+    // ── Layout ──────────────────────────────────────────────────────────────────
+    const COLS = [65, 115, 115, 85, 60, 75]; // Date | Patient | Test | Result | Status | Method = 515
+    const HDRS = ["Date", "Patient", "Test", "Result", "Status", "Method"];
+    const RH   = 20;
+
+    const doc = new PDFDocument({ margin: 0, autoFirstPage: false, size: "A4" });
+    const buffers = [];
+    doc.on("data",  (b) => buffers.push(b));
+    doc.on("end",   () => resolve(Buffer.concat(buffers)));
+    doc.on("error", reject);
+
+    let pageNum    = 0;
+    const totalRows = rows.length;
+
+    const addPage = () => {
+      doc.addPage();
+      pageNum++;
+      let y = MARGIN;
+
+      // Org name — plain bold centred
+      doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(14)
+         .text(orgName, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+      y += 20;
+
+      if (deptName) {
+        doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+           .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y,
+             { width: CW, align: "center", lineBreak: false });
+        y += 14;
+      }
+
+      // Report period sub-line
+      const subtitle = [
+        performer || null,
+        `Report Period: ${label}`,
+        `Total Results: ${totalRows}`,
+      ].filter(Boolean).join("   |   ");
+      doc.fillColor(GRAY).font("Helvetica").fontSize(8)
+         .text(subtitle, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+      y += 14;
+
+      hline(doc, y, 1, BLACK);
+      y += 8;
+
+      // Table header row — stroke-only, bold text
+      doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.5).stroke();
+      let hx = MARGIN;
+      HDRS.forEach((h, i) => {
+        if (i > 0) vline(doc, hx, y, y + RH, 0.5, BLACK);
+        doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
+           .text(h, hx + 4, y + 6, { width: COLS[i] - 8, align: "center", lineBreak: false });
+        hx += COLS[i];
+      });
+      y += RH;
+      return y;
+    };
+
+    let y = addPage();
+    const USABLE_H = PAGE_H - MARGIN - 30;
+
+    rows.forEach((row, idx) => {
+      if (y + RH > USABLE_H) {
+        stampPageNum(doc, pageNum, "?");
+        y = addPage();
+      }
+
+      // Row border — stroke only, no fill
+      doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.25).stroke();
+
+      // All text in bulk report uses plain black — no status colouring
+      const cells = [
+        { text: row.dateStr,      color: BLACK, align: "center" },
+        { text: row.patientLabel, color: BLACK, align: "left"   },
+        { text: row.testName,     color: BLACK, align: "left"   },
+        { text: row.resDisplay,   color: BLACK, align: "center" },
+        { text: row.status,       color: BLACK, align: "center" },
+        { text: row.methodStr,    color: GRAY,  align: "center" },
+      ];
+
+      let cx = MARGIN;
+      cells.forEach((cell, i) => {
+        if (i > 0) vline(doc, cx, y, y + RH, 0.25, BLACK);
+        doc.fillColor(cell.color).font("Helvetica").fontSize(8)
+           .text(cell.text, cx + 4, y + 6,
+             { width: COLS[i] - 8, align: cell.align, lineBreak: false });
+        cx += COLS[i];
+      });
+
+      y += RH;
+    });
+
+    if (rows.length === 0) {
+      doc.fillColor(GRAY).font("Helvetica").fontSize(10)
+         .text("No test results found for the selected date range.", MARGIN, y + 20,
+           { width: CW, align: "center", lineBreak: false });
+    }
+
+    stampPageNum(doc, pageNum, pageNum);
+    doc.end();
+  });
+}
+
+/**
+ * Single-result report — wraps generateSessionReportPdf with colour-coded values.
  * @param {object} result - from getTestResultByIdFlat
  * @returns {Promise<Buffer>}
  */
@@ -339,12 +542,23 @@ export function generateTestReportPdf(result) {
     notes:           result.notes,
     entered_by_name: result.entered_by_name,
     results: [{
-      test_type_name: result.test_type_name,
-      test_type_unit: result.test_type_unit,
-      value_num:      result.value_num,
-      value_text:     result.value_text,
-      normal_min:     result.normal_min,
-      normal_max:     result.normal_max,
+      test_type_name:  result.test_type_name,
+      test_type_unit:  result.test_type_unit,
+      value_num:       result.value_num,
+      value_text:      result.value_text,
+      normal_min:      result.normal_min,
+      normal_max:      result.normal_max,
+      male_min:        result.male_min,
+      male_max:        result.male_max,
+      female_min:      result.female_min,
+      female_max:      result.female_max,
+      reference_text:  result.reference_text,
+      critical_low:    result.critical_low,
+      critical_high:   result.critical_high,
+      is_qualitative:  result.is_qualitative,
+      method_used:     result.method_used,
+      method:          result.method,
+      specimen_type:   result.specimen_type,   // ← fixed: was missing, broke methodCell()
     }],
   };
   return generateSessionReportPdf(session);
