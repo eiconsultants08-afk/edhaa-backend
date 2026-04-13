@@ -1,10 +1,10 @@
-import { getUserByCondition } from "../../database/db.js";
+import { getUserWithOrg } from "../../database/db.js";
 
 //show user profile
 export async function userProfile(req, res) {
   try {
     const { user_id } = req;
-    const user = await getUserByCondition({user_id});
+    const user = await getUserWithOrg({ user_id });
     if (user) {
 
       res.status(200).send({

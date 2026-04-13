@@ -1,11 +1,15 @@
 /**
  * Full demo seed — showcases all EDHHA app features.
  *
- * Keeps    : org, department, ADMIN user(s)
- * Replaces : all org-scoped data (technicians, devices, patients, test types,
- *            test histories, results)
+ * Fully self-contained — works on a blank DB (new dev machine) or existing one.
+ * Edit SEED_CONFIG near the top to configure org/dept/admin for your environment.
  *
- * Creates:
+ * Creates / upserts:
+ *   1 organisation — from SEED_CONFIG.org (created if not found by code slug)
+ *   1 department   — from SEED_CONFIG.dept (created if not found by name)
+ *   1 real admin   — from SEED_CONFIG.realAdmin (created if missing; password always reset)
+ *
+ * Then wipes and recreates all org-scoped demo data:
  *   3 technicians  — tech.raj (most active), tech.priya, tech.meena (least active)
  *   3 devices      — DEV-001 & DEV-002 assigned; DEV-003 unassigned
  *   20 patients    — mixed demographics
@@ -16,6 +20,7 @@
  *     • Days 31–90  : 2–4/day, all COMPLETED
  *
  * Run:  node server/seed.js
+ *        (no arguments needed — configure SEED_CONFIG for your environment)
  *
  * All accounts password: Demo@1234
  */
@@ -27,6 +32,8 @@ import bcrypt from "bcrypt";
 import { randomUUID } from "crypto";
 
 import Users              from "./database/users.js";
+import Organization       from "./database/organization.js";
+import Department         from "./database/department.js";
 import Patients           from "./database/patients.js";
 import Devices            from "./database/devices.js";
 import TestTypes          from "./database/test_types.js";
@@ -63,6 +70,30 @@ async function nextval(seqName) {
   );
   return rows[0].val;
 }
+
+// ── Demo environment configuration ───────────────────────────────────────────
+// Edit this block when setting up on a new machine. The seed will create
+// everything from scratch if it doesn't exist, or reuse what's already there.
+
+const SEED_CONFIG = {
+  org: {
+    org_name: "EIPL Diagnostics",        // Organisation display name
+    code:     "EIPL01",                  // Short unique slug (TEXT, unique in DB)
+    address:  "Mumbai, Maharashtra",
+    phone:    "9800000000",
+    email:    "info@eipl.com",
+  },
+  dept: {
+    department_name: "General Diagnostics",
+  },
+  realAdmin: {
+    name:     "EIPL Admin",
+    username: "admin.eipl",
+    email:    "admin@eipl.com",
+    phone:    "9800000001",
+    // password is always reset to Demo@1234 on every seed run
+  },
+};
 
 // ── Patient pool (20 patients) ────────────────────────────────────────────────
 
@@ -715,64 +746,114 @@ const NOTES_POOL = [
 ];
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+//
+// Usage:
+//   node server/seed.js                              # auto-detect org from first ADMIN
+//   node server/seed.js --org <uuid> --dept <uuid>   # explicit org/dept (new dev env)
 
 async function seed() {
   await sequelize.authenticate();
   console.log("✅ DB connected\n");
 
-  // ── 0. Ensure sequences and columns exist ──────────────────────────────────
-  await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS patients_patient_code_seq;`);
+  // ── 0. Ensure all extended columns and sequences exist ───────────────────
+  // Safe to run multiple times — all DDL uses IF NOT EXISTS / IF EXISTS guards.
+  await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS patients_patient_code_seq START 1;`);
   await sequelize.query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
   await sequelize.query(`ALTER TABLE patients ALTER COLUMN patient_code SET DEFAULT nextval('patients_patient_code_seq');`);
 
-  await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS organizations_org_code_seq;`);
+  await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS organizations_org_code_seq START 1;`);
   await sequelize.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS org_code INTEGER;`);
   await sequelize.query(`ALTER TABLE organizations ALTER COLUMN org_code SET DEFAULT nextval('organizations_org_code_seq');`);
 
-  // BIO-CHEQ extended columns
+  // test_types extended columns (BIO-CHEQ)
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS category TEXT;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS method_options JSONB;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS reference_text TEXT;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS critical_low FLOAT;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS critical_high FLOAT;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS is_qualitative BOOLEAN NOT NULL DEFAULT false;`);
+  await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS specimen_type TEXT;`);
+
+  // patient_test_results.method_used
   await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS method_used TEXT;`);
+
+  // test_histories.status enum
+  await sequelize.query(`DO $$ BEGIN CREATE TYPE enum_test_history_status AS ENUM ('PENDING','COMPLETED'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+  await sequelize.query(`ALTER TABLE test_histories ADD COLUMN IF NOT EXISTS status enum_test_history_status NOT NULL DEFAULT 'PENDING';`);
+
   console.log("✅ Sequences & extended columns verified\n");
 
-  // ── 1. Find the one admin, delete any duplicates ──────────────────────────
-  const allAdmins = await Users.findAll({ where: { role: "ADMIN" }, raw: true });
-  if (!allAdmins.length) throw new Error("No ADMIN user found. Create one via the app first.");
+  // ── 1. Upsert org, department, and real admin ─────────────────────────────
+  // Fully self-contained: works on a blank DB with no prior data.
 
-  const admin = allAdmins[0];
-  const extraAdmins = allAdmins.slice(1);
-
-  if (extraAdmins.length) {
-    console.log(`🗑  Removing ${extraAdmins.length} duplicate admin(s) …`);
-    for (const dup of extraAdmins) {
-      await sequelize.query(`DELETE FROM tokens WHERE user_id = :uid`, { replacements: { uid: dup.user_id } });
-      await sequelize.query(`DELETE FROM users  WHERE user_id = :uid`, { replacements: { uid: dup.user_id } });
-    }
-    console.log("   Done.\n");
+  // 1a. Organisation — find by unique slug `code`, create if missing
+  let org = await Organization.findOne({ where: { code: SEED_CONFIG.org.code }, raw: true });
+  if (!org) {
+    console.log(`🏢 Creating organisation "${SEED_CONFIG.org.org_name}" …`);
+    const created = await Organization.create({
+      org_id:   randomUUID(),
+      org_name: SEED_CONFIG.org.org_name,
+      code:     SEED_CONFIG.org.code,
+      address:  SEED_CONFIG.org.address,
+      phone:    SEED_CONFIG.org.phone,
+      email:    SEED_CONFIG.org.email,
+      status:   "ACTIVE",
+    });
+    org = created.get({ plain: true });
+  } else {
+    console.log(`📌 Organisation found: "${org.org_name}"`);
   }
+  const org_id = org.org_id;
 
-  // Reset admin password to Demo@1234 so credentials are always known after seed
-  const adminHash = await bcrypt.hash("Demo@1234", 10);
-  await sequelize.query(
-    `UPDATE users SET password = :pw WHERE user_id = :uid`,
-    { replacements: { pw: adminHash, uid: admin.user_id } }
-  );
-
-  const { org_id, department_id } = admin;
-  console.log(`📌 Admin: ${admin.username || admin.email}  /  Demo@1234`);
-  console.log(`   Org:   ${org_id}\n`);
-
-  // Backfill org_code if missing
+  // Ensure org_code is stamped
   await sequelize.query(
     `UPDATE organizations SET org_code = nextval('organizations_org_code_seq') WHERE org_id = :oid AND org_code IS NULL`,
     { replacements: { oid: org_id } }
   );
 
-  // ── 2. Wipe existing org data ──────────────────────────────────────────────
+  // 1b. Department — find by name within org, create if missing
+  let dept = await Department.findOne({ where: { department_name: SEED_CONFIG.dept.department_name }, raw: true });
+  if (!dept) {
+    console.log(`🏬 Creating department "${SEED_CONFIG.dept.department_name}" …`);
+    const created = await Department.create({
+      department_id:   randomUUID(),
+      department_name: SEED_CONFIG.dept.department_name,
+    });
+    dept = created.get({ plain: true });
+  } else {
+    console.log(`📌 Department found: "${dept.department_name}"`);
+  }
+  const department_id = dept.department_id;
+
+  // 1c. Real admin — find by username, create if missing; always reset password
+  const hash = await bcrypt.hash("Demo@1234", 10);
+
+  let existingAdmin = await Users.findOne({ where: { username: SEED_CONFIG.realAdmin.username }, raw: true });
+  if (!existingAdmin) {
+    console.log(`👤 Creating real admin "${SEED_CONFIG.realAdmin.username}" …`);
+    existingAdmin = (await Users.create({
+      user_id:       randomUUID(),
+      role:          "ADMIN",
+      name:          SEED_CONFIG.realAdmin.name,
+      username:      SEED_CONFIG.realAdmin.username,
+      email:         SEED_CONFIG.realAdmin.email,
+      phone:         SEED_CONFIG.realAdmin.phone,
+      password:      hash,
+      org_id,
+      department_id,
+      status:        "ACTIVE",
+    })).get({ plain: true });
+  } else {
+    await sequelize.query(
+      `UPDATE users SET password = :pw, org_id = :oid, department_id = :did WHERE user_id = :uid`,
+      { replacements: { pw: hash, oid: org_id, did: department_id, uid: existingAdmin.user_id } }
+    );
+    console.log(`📌 Real admin found: "${existingAdmin.username}" (password reset)`);
+  }
+  console.log("");
+
+  // ── 2. Wipe existing org data ─────────────────────────────────────────────
+  // Order matters: results → histories → types/patients/devices → tokens → users
   console.log("🗑  Wiping existing org data …");
   await sequelize.query(`DELETE FROM patient_test_results WHERE org_id = :oid`, { replacements: { oid: org_id } });
   await sequelize.query(`DELETE FROM test_histories      WHERE org_id = :oid`, { replacements: { oid: org_id } });
@@ -782,74 +863,69 @@ async function seed() {
   await sequelize.query(`DELETE FROM tokens              WHERE org_id = :oid`, { replacements: { oid: org_id } });
   await sequelize.query(`DELETE FROM users WHERE org_id = :oid AND role = 'TECHNICIAN'`, { replacements: { oid: org_id } });
 
-  // Purge any globally-orphaned demo technician accounts from prior runs
-  const demoTechs = ["tech.raj", "tech.priya", "tech.meena"];
-  await sequelize.query(`
-    DELETE FROM patient_test_results
-    WHERE history_id IN (
-      SELECT history_id FROM test_histories
-      WHERE entered_by_user_id IN (SELECT user_id FROM users WHERE username IN (:names))
-    )
-  `, { replacements: { names: demoTechs } });
-  await sequelize.query(`
-    DELETE FROM patient_test_results
-    WHERE patient_id IN (
-      SELECT patient_id FROM patients
-      WHERE created_by IN (SELECT user_id FROM users WHERE username IN (:names))
-    )
-  `, { replacements: { names: demoTechs } });
-  await sequelize.query(`
-    DELETE FROM test_histories
-    WHERE entered_by_user_id IN (SELECT user_id FROM users WHERE username IN (:names))
-  `, { replacements: { names: demoTechs } });
-  await sequelize.query(`
-    DELETE FROM patients
-    WHERE created_by IN (SELECT user_id FROM users WHERE username IN (:names))
-  `, { replacements: { names: demoTechs } });
-  await sequelize.query(`
-    UPDATE devices SET assigned_to_user_id = NULL, assigned_by_user_id = NULL
-    WHERE assigned_to_user_id IN (SELECT user_id FROM users WHERE username IN (:names))
-  `, { replacements: { names: demoTechs } });
-  await sequelize.query(`DELETE FROM tokens WHERE user_id IN (SELECT user_id FROM users WHERE username IN (:names))`, { replacements: { names: demoTechs } });
-  await sequelize.query(`DELETE FROM users WHERE username IN (:names)`, { replacements: { names: demoTechs } });
+  // Purge any stale demo accounts by username (handles cross-org orphans from prior runs)
+  const demoUsernames = ["tech.raj", "tech.priya", "tech.meena", "admin.demo"];
+  for (const uname of demoUsernames) {
+    await sequelize.query(
+      `DELETE FROM tokens WHERE user_id IN (SELECT user_id FROM users WHERE username = :u)`,
+      { replacements: { u: uname } }
+    );
+    await sequelize.query(`DELETE FROM users WHERE username = :u`, { replacements: { u: uname } });
+  }
   console.log("   Done.\n");
 
-  // ── 3. Create technicians ─────────────────────────────────────────────────
-  console.log("👤 Creating 3 technicians …");
-  const hash = await bcrypt.hash("Demo@1234", 10);
+  // ── 3. Reset patient_code sequence → codes will be 00001–00020 ────────────
+  // setval(seq, 1, false) → next nextval() returns 1
+  await sequelize.query(`SELECT setval('patients_patient_code_seq', 1, false);`);
+  console.log("🔢 patient_code sequence reset (first patient = 00001)\n");
+
+  // ── 4. Create accounts ────────────────────────────────────────────────────
+  // Sub-admin (ADMIN role) — demo account, always created fresh
+  console.log("👤 Creating accounts …");
+  const demoAdmin = await Users.create({
+    user_id: randomUUID(), role: "ADMIN",
+    name: "Demo Admin", username: "admin.demo",
+    email: "admin.demo@demo.com", phone: "9900000001",
+    password: hash, org_id, department_id, status: "ACTIVE",
+  });
 
   const tech1 = await Users.create({
     user_id: randomUUID(), role: "TECHNICIAN",
-    name: "Raj Kulkarni", email: "raj.kulkarni@demo.com",
-    username: "tech.raj", phone: "9900000101",
+    name: "Raj Kulkarni", username: "tech.raj",
+    email: "raj.kulkarni@demo.com", phone: "9900000101",
     password: hash, org_id, department_id, status: "WORKING",
   });
   const tech2 = await Users.create({
     user_id: randomUUID(), role: "TECHNICIAN",
-    name: "Priya Desai", email: "priya.desai@demo.com",
-    username: "tech.priya", phone: "9900000102",
+    name: "Priya Desai", username: "tech.priya",
+    email: "priya.desai@demo.com", phone: "9900000102",
     password: hash, org_id, department_id, status: "WORKING",
   });
   const tech3 = await Users.create({
     user_id: randomUUID(), role: "TECHNICIAN",
-    name: "Meena Iyer", email: "meena.iyer@demo.com",
-    username: "tech.meena", phone: "9900000103",
+    name: "Meena Iyer", username: "tech.meena",
+    email: "meena.iyer@demo.com", phone: "9900000103",
     password: hash, org_id, department_id, status: "ACTIVE",
   });
 
-  console.log(`   tech.raj   / Demo@1234  (${tech1.name})`);
-  console.log(`   tech.priya / Demo@1234  (${tech2.name})`);
-  console.log(`   tech.meena / Demo@1234  (${tech3.name})\n`);
+  console.log(`   admin.demo  / Demo@1234  — ${demoAdmin.name} (ADMIN)`);
+  if (existingAdmin) console.log(`   ${existingAdmin.username || existingAdmin.email}  / Demo@1234  — (existing admin, password reset)`);
+  console.log(`   tech.raj    / Demo@1234  — ${tech1.name}`);
+  console.log(`   tech.priya  / Demo@1234  — ${tech2.name}`);
+  console.log(`   tech.meena  / Demo@1234  — ${tech3.name}\n`);
 
-  // ── 4. Create devices ─────────────────────────────────────────────────────
-  console.log("🖥  Creating 3 devices (DEV-001 & DEV-002 assigned, DEV-003 unassigned) …");
+  // ── 5. Create devices ─────────────────────────────────────────────────────
+  console.log("🖥  Creating 3 devices (DEV-DEMO-001 & 002 assigned, 003 unassigned) …");
+
+  // Use demoAdmin as assigner (existingAdmin may be null when --org flag is used)
+  const assignerUserId = existingAdmin?.user_id || demoAdmin.user_id;
 
   const device1 = await Devices.create({
     device_id: "DEV-DEMO-001", org_id,
     serial_no: "SN-DEMO-001", model: "BIO-CHEQ BQ-A1-01",
     status: "ACTIVE", firmware_version: "v2.4.1", department_id,
     assigned_to_user_id: tech1.user_id,
-    assigned_by_user_id: admin.user_id,
+    assigned_by_user_id: assignerUserId,
     assigned_at: new Date(),
   });
   const device2 = await Devices.create({
@@ -857,7 +933,7 @@ async function seed() {
     serial_no: "SN-DEMO-002", model: "BIO-CHEQ BQ-A1-01",
     status: "ACTIVE", firmware_version: "v2.4.1", department_id,
     assigned_to_user_id: tech2.user_id,
-    assigned_by_user_id: admin.user_id,
+    assigned_by_user_id: assignerUserId,
     assigned_at: new Date(),
   });
   const device3 = await Devices.create({
@@ -875,7 +951,7 @@ async function seed() {
 
   const assignedDevices = [device1, device2];
 
-  // ── 5. Create patients ────────────────────────────────────────────────────
+  // ── 6. Create patients ────────────────────────────────────────────────────
   console.log("🧑‍⚕️ Creating 20 patients …");
 
   const patients = [];
@@ -970,7 +1046,7 @@ async function seed() {
       // ~15% of sessions performed directly by admin (showcases admin test flow)
       const adminPerforms = Math.random() < 0.15;
       const tech     = adminPerforms ? null : weightedPick(techPool, techWeights);
-      const performer = adminPerforms ? admin : tech;
+      const performer = adminPerforms ? demoAdmin : tech;
       const device   = adminPerforms
                      ? pick(assignedDevices)
                      : tech.user_id === tech1.user_id ? device1
@@ -1033,24 +1109,40 @@ async function seed() {
     }
   }
 
-  console.log(`   ${sessionCount} sessions  (${pendingCount} PENDING, ${sessionCount - pendingCount} COMPLETED)`);
+  console.log(`   ${sessionCount} sessions  (${pendingCount} PENDING · ${sessionCount - pendingCount} COMPLETED)`);
   console.log(`   ${resultCount} results\n`);
 
   // ── Done ──────────────────────────────────────────────────────────────────
-  console.log("🎉 Seed complete!\n");
-  console.log("─────────────────────────────────────────────────────────");
-  console.log("  Log in with your existing ADMIN account to see analytics.");
+  const [orgRow] = await sequelize.query(
+    `SELECT org_name, org_code FROM organizations WHERE org_id = :oid`,
+    { replacements: { oid: org_id }, type: sequelize.QueryTypes.SELECT }
+  );
+  const orgDisplay = orgRow
+    ? `${orgRow.org_name}  #${String(orgRow.org_code).padStart(5, "0")}`
+    : org_id;
+
+  console.log(`\n🎉 Seed complete!\n`);
+  console.log("═══════════════════════════════════════════════════════════");
+  console.log(`  Organisation : ${orgDisplay}`);
   console.log("");
-  console.log("  Technician accounts (password: Demo@1234):");
-  console.log("    tech.raj    — Raj Kulkarni  (most active, device DEV-DEMO-001)");
-  console.log("    tech.priya  — Priya Desai   (mid activity, device DEV-DEMO-002)");
-  console.log("    tech.meena  — Meena Iyer    (least active, no device assigned)");
+  console.log("  ADMIN accounts  (password: Demo@1234)");
+  console.log(`    ${SEED_CONFIG.realAdmin.username.padEnd(15)}— ${SEED_CONFIG.realAdmin.name} (real admin)`);
+  console.log(`    admin.demo     — Demo Admin (seed account)`);
   console.log("");
-  console.log("  Devices (BIO-CHEQ BQ-A1-01 Series):");
-  console.log("    DEV-DEMO-001  → assigned to tech.raj");
-  console.log("    DEV-DEMO-002  → assigned to tech.priya");
-  console.log("    DEV-DEMO-003  → unassigned (visible in admin device list)");
-  console.log("─────────────────────────────────────────────────────────\n");
+  console.log("  TECHNICIAN accounts  (password: Demo@1234)");
+  console.log("    tech.raj       — Raj Kulkarni   (WORKING · DEV-DEMO-001)");
+  console.log("    tech.priya     — Priya Desai    (WORKING · DEV-DEMO-002)");
+  console.log("    tech.meena     — Meena Iyer     (ACTIVE  · no device)");
+  console.log("");
+  console.log("  Devices  (BIO-CHEQ BQ-A1-01)");
+  console.log("    DEV-DEMO-001   → tech.raj");
+  console.log("    DEV-DEMO-002   → tech.priya");
+  console.log("    DEV-DEMO-003   → unassigned");
+  console.log("");
+  console.log("  Patients : 20  (codes 00001 – 00020)");
+  console.log(`  Sessions : ${sessionCount}  (${pendingCount} PENDING · ${sessionCount - pendingCount} COMPLETED)`);
+  console.log(`  Results  : ${resultCount}`);
+  console.log("═══════════════════════════════════════════════════════════\n");
 
   process.exit(0);
 }

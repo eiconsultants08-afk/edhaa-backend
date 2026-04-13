@@ -23,6 +23,25 @@ export async function getUserByCondition(condition) {
   });
 }
 
+// Like getUserByCondition but also returns org_name + org_code nested under an `org` key.
+// Used by the user profile endpoint so the app can display a clean org identifier.
+// Uses two plain queries (no Sequelize include) to avoid association-ordering issues.
+export async function getUserWithOrg(condition) {
+  const user = await Users.findOne({ where: condition, raw: true });
+  if (!user) return null;
+
+  let org = null;
+  if (user.org_id) {
+    const rows = await sequelize.query(
+      `SELECT org_name, org_code FROM organizations WHERE org_id = :oid LIMIT 1`,
+      { replacements: { oid: user.org_id }, type: sequelize.QueryTypes.SELECT }
+    );
+    org = rows[0] || null;
+  }
+
+  return { ...user, org };
+}
+
 export async function createTechnician(data) {
   return Users.create(data);
 }

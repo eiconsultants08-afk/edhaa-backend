@@ -238,9 +238,9 @@ function drawPatientInfo(doc, session, startY) {
 function drawResultsTable(doc, results, startY, patientGender, colorResults = true) {
   let y = sectionHead(doc, "LABORATORY TEST RESULTS", startY) + 2;
 
-  const COLS = [160, 100, 165, 90]; // sum = 515 = CW
+  const COLS = [155, 95, 160, 105]; // Test | Result | Bio Reference | Method — sum = 515 = CW
   const HDRS = ["Test", "Result Value", "Biological Reference", "Method"];
-  const RH   = 22;
+  const RH   = 28; // taller rows so wrapped method text stays within the cell
 
   // ── Header row ──────────────────────────────────────────────────────────────
   doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.5).stroke();
@@ -249,13 +249,13 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
   HDRS.forEach((h, i) => {
     if (i > 0) vline(doc, hx, y, y + RH, 0.5, BLACK);
     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-       .text(h, hx + 5, y + 7, { width: COLS[i] - 10, align: "center", lineBreak: false });
+       .text(h, hx + 5, y + 9, { width: COLS[i] - 10, align: "center", lineBreak: false });
     hx += COLS[i];
   });
   y += RH;
 
   // ── Data rows ───────────────────────────────────────────────────────────────
-  results.forEach((r, rowIdx) => {
+  results.forEach((r) => {
     const status     = statusFor(r, patientGender);
     const unit       = r.test_type_unit || r.unit || "";
     const rawVal     = r.value_text != null
@@ -264,26 +264,42 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
     const resDisplay = (unit && unit !== "Positive/Negative") ? `${rawVal} ${unit}` : rawVal;
     const resColor   = colorResults && status ? statusColor(status) : BLACK;
 
-    // Row border
+    // Row border (draw before text so borders don't overdraw text)
     doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.3).stroke();
 
-    const cells = [
-      { text: r.test_type_name || "-",        color: BLACK,    align: "left"   },
-      { text: resDisplay,                     color: resColor, align: "center" },
-      { text: bioReference(r, patientGender), color: GRAY,     align: "center" },
-      { text: methodCell(r),                  color: GRAY,     align: "center" },
-    ];
+    // Draw all vertical dividers upfront
+    let divX = MARGIN;
+    COLS.forEach((w, i) => {
+      divX += w;
+      if (i < COLS.length - 1) vline(doc, divX, y, y + RH, 0.3, BLACK);
+    });
+
+    const isBold = colorResults && status && status !== "NORMAL" && status !== "NEGATIVE";
 
     let cx = MARGIN;
-    cells.forEach((cell, i) => {
-      if (i > 0) vline(doc, cx, y, y + RH, 0.3, BLACK);
-      const isBold = colorResults && i === 1 && status && status !== "NORMAL" && status !== "NEGATIVE";
-      doc.fillColor(cell.color)
-         .font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
-         .text(cell.text, cx + 5, y + 7,
-           { width: COLS[i] - 10, align: cell.align, lineBreak: false });
-      cx += COLS[i];
-    });
+
+    // Col 0 — Test name (left-aligned, single line)
+    doc.fillColor(BLACK).font("Helvetica").fontSize(9)
+       .text(r.test_type_name || "-", cx + 5, y + 9,
+         { width: COLS[0] - 10, align: "left", lineBreak: false });
+    cx += COLS[0];
+
+    // Col 1 — Result value (centred, bold+colour when abnormal)
+    doc.fillColor(resColor).font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
+       .text(resDisplay, cx + 5, y + 9,
+         { width: COLS[1] - 10, align: "center", lineBreak: false });
+    cx += COLS[1];
+
+    // Col 2 — Biological reference (centred, single line)
+    doc.fillColor(GRAY).font("Helvetica").fontSize(9)
+       .text(bioReference(r, patientGender), cx + 5, y + 9,
+         { width: COLS[2] - 10, align: "center", lineBreak: false });
+    cx += COLS[2];
+
+    // Col 3 — Method (centred, allow line wrapping — top-aligned within cell)
+    doc.fillColor(GRAY).font("Helvetica").fontSize(8.5)
+       .text(methodCell(r), cx + 5, y + 6,
+         { width: COLS[3] - 10, align: "center" });
 
     y += RH;
   });
@@ -421,9 +437,9 @@ export function generateBulkReportPdf(histories, meta = {}) {
     }
 
     // ── Layout ──────────────────────────────────────────────────────────────────
-    const COLS = [65, 115, 115, 85, 60, 75]; // Date | Patient | Test | Result | Status | Method = 515
+    const COLS = [60, 115, 115, 78, 52, 95]; // Date | Patient | Test | Result | Status | Method = 515
     const HDRS = ["Date", "Patient", "Test", "Result", "Status", "Method"];
-    const RH   = 20;
+    const RH   = 24; // taller rows so wrapped method text stays within the cell
 
     const doc = new PDFDocument({ margin: 0, autoFirstPage: false, size: "A4" });
     const buffers = [];
@@ -470,7 +486,7 @@ export function generateBulkReportPdf(histories, meta = {}) {
       HDRS.forEach((h, i) => {
         if (i > 0) vline(doc, hx, y, y + RH, 0.5, BLACK);
         doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
-           .text(h, hx + 4, y + 6, { width: COLS[i] - 8, align: "center", lineBreak: false });
+           .text(h, hx + 4, y + 8, { width: COLS[i] - 8, align: "center", lineBreak: false });
         hx += COLS[i];
       });
       y += RH;
@@ -489,22 +505,31 @@ export function generateBulkReportPdf(histories, meta = {}) {
       // Row border — stroke only, no fill
       doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.25).stroke();
 
+      // Draw all vertical dividers upfront so they don't overdraw text
+      let dvx = MARGIN;
+      COLS.forEach((w, i) => {
+        dvx += w;
+        if (i < COLS.length - 1) vline(doc, dvx, y, y + RH, 0.25, BLACK);
+      });
+
       // All text in bulk report uses plain black — no status colouring
       const cells = [
-        { text: row.dateStr,      color: BLACK, align: "center" },
-        { text: row.patientLabel, color: BLACK, align: "left"   },
-        { text: row.testName,     color: BLACK, align: "left"   },
-        { text: row.resDisplay,   color: BLACK, align: "center" },
-        { text: row.status,       color: BLACK, align: "center" },
-        { text: row.methodStr,    color: GRAY,  align: "center" },
+        { text: row.dateStr,      color: BLACK, align: "center", wrap: false },
+        { text: row.patientLabel, color: BLACK, align: "left",   wrap: false },
+        { text: row.testName,     color: BLACK, align: "left",   wrap: false },
+        { text: row.resDisplay,   color: BLACK, align: "center", wrap: false },
+        { text: row.status,       color: BLACK, align: "center", wrap: false },
+        { text: row.methodStr,    color: GRAY,  align: "center", wrap: true  },
       ];
 
       let cx = MARGIN;
       cells.forEach((cell, i) => {
-        if (i > 0) vline(doc, cx, y, y + RH, 0.25, BLACK);
+        const textY = cell.wrap ? y + 5 : y + 8;
+        const opts  = cell.wrap
+          ? { width: COLS[i] - 8, align: cell.align }
+          : { width: COLS[i] - 8, align: cell.align, lineBreak: false };
         doc.fillColor(cell.color).font("Helvetica").fontSize(8)
-           .text(cell.text, cx + 4, y + 6,
-             { width: COLS[i] - 8, align: cell.align, lineBreak: false });
+           .text(cell.text, cx + 4, textY, opts);
         cx += COLS[i];
       });
 
