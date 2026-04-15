@@ -112,6 +112,15 @@ async function startPostgres() {
     await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS method_used TEXT;`);
     console.log("✅ patient_test_results.method_used column patched");
 
+    // patient_code on test_histories and patient_test_results — enables direct DB lookup by 5-digit code
+    await sequelize.query(`ALTER TABLE test_histories ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
+    await sequelize.query(`UPDATE test_histories th SET patient_code = p.patient_code FROM patients p WHERE th.patient_id = p.patient_id AND th.patient_code IS NULL;`);
+    console.log("✅ test_histories.patient_code column patched");
+
+    await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
+    await sequelize.query(`UPDATE patient_test_results ptr SET patient_code = p.patient_code FROM patients p WHERE ptr.patient_id = p.patient_id AND ptr.patient_code IS NULL;`);
+    console.log("✅ patient_test_results.patient_code column patched");
+
     // specimen_type on test types (Blood / Urine / Saliva / Calculated)
     await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS specimen_type TEXT;`);
     console.log("✅ test_types.specimen_type column patched");

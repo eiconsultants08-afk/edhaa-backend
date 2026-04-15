@@ -97,27 +97,30 @@ const SEED_CONFIG = {
 
 // ── Patient pool (20 patients) ────────────────────────────────────────────────
 
+// Fixed UUIDs for demo patients — stable across all machines and seed runs.
+// Use these to reference specific patients directly in the DB (e.g. DELETE FROM patients WHERE patient_id = '...').
+// patient_code 00001 = index 0, 00002 = index 1, etc.
 const PATIENT_POOL = [
-  { name: "Arjun Sharma",        gender: "MALE",   dob: "1980-04-12", phone: "9810011001", email: "arjun.sharma@mail.com"    },
-  { name: "Preethi Nair",        gender: "FEMALE", dob: "1993-07-25", phone: "9810011002", email: "preethi.nair@mail.com"    },
-  { name: "Mohammed Rafi",       gender: "MALE",   dob: "1975-11-03", phone: "9810011003", email: "mohammed.rafi@mail.com"   },
-  { name: "Sunita Devi",         gender: "FEMALE", dob: "1988-02-18", phone: "9810011004", email: "sunita.devi@mail.com"     },
-  { name: "Vikram Patel",        gender: "MALE",   dob: "1965-09-30", phone: "9810011005", email: "vikram.patel@mail.com"    },
-  { name: "Lakshmi Rao",         gender: "FEMALE", dob: "1971-06-14", phone: "9810011006", email: "lakshmi.rao@mail.com"     },
-  { name: "Deepak Verma",        gender: "MALE",   dob: "1995-01-22", phone: "9810011007", email: "deepak.verma@mail.com"    },
-  { name: "Anjali Gupta",        gender: "FEMALE", dob: "1990-08-09", phone: "9810011008", email: "anjali.gupta@mail.com"    },
-  { name: "Suresh Kumar",        gender: "MALE",   dob: "1958-12-05", phone: "9810011009", email: "suresh.kumar@mail.com"    },
-  { name: "Rekha Menon",         gender: "FEMALE", dob: "1983-03-27", phone: "9810011010", email: "rekha.menon@mail.com"     },
-  { name: "Rajesh Bose",         gender: "MALE",   dob: "1970-10-16", phone: "9810011011", email: "rajesh.bose@mail.com"     },
-  { name: "Kavitha Pillai",      gender: "FEMALE", dob: "1997-05-01", phone: "9810011012", email: "kavitha.pillai@mail.com"  },
-  { name: "Anil Khanna",         gender: "MALE",   dob: "1962-07-19", phone: "9810011013", email: "anil.khanna@mail.com"     },
-  { name: "Divya Reddy",         gender: "FEMALE", dob: "1986-11-11", phone: "9810011014", email: "divya.reddy@mail.com"     },
-  { name: "Sanjay Mishra",       gender: "MALE",   dob: "1978-04-07", phone: "9810011015", email: "sanjay.mishra@mail.com"   },
-  { name: "Meera Krishnan",      gender: "FEMALE", dob: "1969-08-22", phone: "9810011016", email: "meera.krishnan@mail.com"  },
-  { name: "Rahul Tiwari",        gender: "MALE",   dob: "1991-03-15", phone: "9810011017", email: "rahul.tiwari@mail.com"    },
-  { name: "Pooja Bhatt",         gender: "FEMALE", dob: "1984-12-30", phone: "9810011018", email: "pooja.bhatt@mail.com"     },
-  { name: "Karthik Subramaniam", gender: "MALE",   dob: "1973-06-08", phone: "9810011019", email: "karthik.sub@mail.com"     },
-  { name: "Nandita Singh",       gender: "FEMALE", dob: "1999-01-19", phone: "9810011020", email: "nandita.singh@mail.com"   },
+  { uuid: "b0000000-0000-4000-8000-000000000001", name: "Arjun Sharma",        gender: "MALE",   dob: "1980-04-12", phone: "9810011001", email: "arjun.sharma@mail.com"    },
+  { uuid: "b0000000-0000-4000-8000-000000000002", name: "Preethi Nair",        gender: "FEMALE", dob: "1993-07-25", phone: "9810011002", email: "preethi.nair@mail.com"    },
+  { uuid: "b0000000-0000-4000-8000-000000000003", name: "Mohammed Rafi",       gender: "MALE",   dob: "1975-11-03", phone: "9810011003", email: "mohammed.rafi@mail.com"   },
+  { uuid: "b0000000-0000-4000-8000-000000000004", name: "Sunita Devi",         gender: "FEMALE", dob: "1988-02-18", phone: "9810011004", email: "sunita.devi@mail.com"     },
+  { uuid: "b0000000-0000-4000-8000-000000000005", name: "Vikram Patel",        gender: "MALE",   dob: "1965-09-30", phone: "9810011005", email: "vikram.patel@mail.com"    },
+  { uuid: "b0000000-0000-4000-8000-000000000006", name: "Lakshmi Rao",         gender: "FEMALE", dob: "1971-06-14", phone: "9810011006", email: "lakshmi.rao@mail.com"     },
+  { uuid: "b0000000-0000-4000-8000-000000000007", name: "Deepak Verma",        gender: "MALE",   dob: "1995-01-22", phone: "9810011007", email: "deepak.verma@mail.com"    },
+  { uuid: "b0000000-0000-4000-8000-000000000008", name: "Anjali Gupta",        gender: "FEMALE", dob: "1990-08-09", phone: "9810011008", email: "anjali.gupta@mail.com"    },
+  { uuid: "b0000000-0000-4000-8000-000000000009", name: "Suresh Kumar",        gender: "MALE",   dob: "1958-12-05", phone: "9810011009", email: "suresh.kumar@mail.com"    },
+  { uuid: "b0000000-0000-4000-8000-000000000010", name: "Rekha Menon",         gender: "FEMALE", dob: "1983-03-27", phone: "9810011010", email: "rekha.menon@mail.com"     },
+  { uuid: "b0000000-0000-4000-8000-000000000011", name: "Rajesh Bose",         gender: "MALE",   dob: "1970-10-16", phone: "9810011011", email: "rajesh.bose@mail.com"     },
+  { uuid: "b0000000-0000-4000-8000-000000000012", name: "Kavitha Pillai",      gender: "FEMALE", dob: "1997-05-01", phone: "9810011012", email: "kavitha.pillai@mail.com"  },
+  { uuid: "b0000000-0000-4000-8000-000000000013", name: "Anil Khanna",         gender: "MALE",   dob: "1962-07-19", phone: "9810011013", email: "anil.khanna@mail.com"     },
+  { uuid: "b0000000-0000-4000-8000-000000000014", name: "Divya Reddy",         gender: "FEMALE", dob: "1986-11-11", phone: "9810011014", email: "divya.reddy@mail.com"     },
+  { uuid: "b0000000-0000-4000-8000-000000000015", name: "Sanjay Mishra",       gender: "MALE",   dob: "1978-04-07", phone: "9810011015", email: "sanjay.mishra@mail.com"   },
+  { uuid: "b0000000-0000-4000-8000-000000000016", name: "Meera Krishnan",      gender: "FEMALE", dob: "1969-08-22", phone: "9810011016", email: "meera.krishnan@mail.com"  },
+  { uuid: "b0000000-0000-4000-8000-000000000017", name: "Rahul Tiwari",        gender: "MALE",   dob: "1991-03-15", phone: "9810011017", email: "rahul.tiwari@mail.com"    },
+  { uuid: "b0000000-0000-4000-8000-000000000018", name: "Pooja Bhatt",         gender: "FEMALE", dob: "1984-12-30", phone: "9810011018", email: "pooja.bhatt@mail.com"     },
+  { uuid: "b0000000-0000-4000-8000-000000000019", name: "Karthik Subramaniam", gender: "MALE",   dob: "1973-06-08", phone: "9810011019", email: "karthik.sub@mail.com"     },
+  { uuid: "b0000000-0000-4000-8000-000000000020", name: "Nandita Singh",       gender: "FEMALE", dob: "1999-01-19", phone: "9810011020", email: "nandita.singh@mail.com"   },
 ];
 
 // ── BIO-CHEQ test type definitions (31 numeric + 3 qualitative) ──────────────
@@ -755,7 +758,12 @@ async function seed() {
   await sequelize.authenticate();
   console.log("✅ DB connected\n");
 
-  // ── 0. Ensure all extended columns and sequences exist ───────────────────
+  // ── 0a. Sync models → create any missing tables on a fresh machine ────────
+  // Must run before any ALTER TABLE statements so the tables actually exist.
+  await sequelize.sync();
+  console.log("✅ Tables synced\n");
+
+  // ── 0b. Ensure all extended columns and sequences exist ───────────────────
   // Safe to run multiple times — all DDL uses IF NOT EXISTS / IF EXISTS guards.
   await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS patients_patient_code_seq START 1;`);
   await sequelize.query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
@@ -776,6 +784,10 @@ async function seed() {
 
   // patient_test_results.method_used
   await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS method_used TEXT;`);
+
+  // patient_code on sessions and results — 5-digit lookup column
+  await sequelize.query(`ALTER TABLE test_histories ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
+  await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
 
   // test_histories.status enum
   await sequelize.query(`DO $$ BEGIN CREATE TYPE enum_test_history_status AS ENUM ('PENDING','COMPLETED'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
@@ -962,7 +974,7 @@ async function seed() {
 
     const patientCode = await nextval("patients_patient_code_seq");
     const patient = await Patients.create({
-      patient_id:   randomUUID(),
+      patient_id:   p.uuid,
       patient_code: patientCode,
       org_id,
       name:         p.name,
@@ -1062,6 +1074,7 @@ async function seed() {
       const history = await TestHistory.create({
         history_id:         randomUUID(),
         patient_id:         patient.patient_id,
+        patient_code:       patient.patient_code,
         org_id,
         department_id,
         device_id:          device.device_id,
@@ -1088,6 +1101,7 @@ async function seed() {
             result_id:    randomUUID(),
             history_id:   history.history_id,
             patient_id:   patient.patient_id,
+            patient_code: patient.patient_code,
             org_id,
             test_type_id: tt.test_type_id,
             value_num:    (!isPending && !isQual)
