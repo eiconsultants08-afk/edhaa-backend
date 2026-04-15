@@ -308,7 +308,7 @@ async function seed() {
     user_id: randomUUID(), role: "TECHNICIAN",
     name: "Meena Iyer", username: "tech.meena",
     email: "meena.iyer@demo.com", phone: "9900000102",
-    password: hash, org_id, department_id, status: "ACTIVE",
+    password: hash, org_id, department_id, status: "INACTIVE",
   });
 
   const techSuresh = await Users.create({
@@ -320,7 +320,7 @@ async function seed() {
 
   console.log(`   admin.demo  / Demo@1234 — Demo Admin (ADMIN)`);
   console.log(`   tech.raj    / Demo@1234 — Raj Kulkarni  (TECHNICIAN · WORKING)`);
-  console.log(`   tech.meena  / Demo@1234 — Meena Iyer    (TECHNICIAN · ACTIVE)`);
+  console.log(`   tech.meena  / Demo@1234 — Meena Iyer    (TECHNICIAN · INACTIVE)`);
   console.log(`   tech.suresh / Demo@1234 — Suresh Nair   (TECHNICIAN · INACTIVE)\n`);
 
   // ── 7. Create devices ────────────────────────────────────────────────────────
@@ -525,7 +525,7 @@ async function seed() {
   console.log("");
   console.log("  TECHNICIAN accounts  (password: Demo@1234)");
   console.log("    tech.raj     — Raj Kulkarni  (WORKING · DEV-DEMO-001)");
-  console.log("    tech.meena   — Meena Iyer     (ACTIVE)");
+  console.log("    tech.meena   — Meena Iyer     (INACTIVE)");
   console.log("    tech.suresh  — Suresh Nair    (INACTIVE)");
   console.log("");
   console.log("  Devices");
