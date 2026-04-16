@@ -801,7 +801,7 @@ export async function completeTestSessionAdmin(req, res) {
     const { history_id } = req.params;
     if (!history_id) return failureResponse(res, 400, "history_id required");
 
-    const { tests, notes, complete } = req.body || {};
+    const { tests, notes, complete, device_id } = req.body || {};
 
     const session = await getTestSessionFlat(history_id);
     if (!session) return failureResponse(res, 404, "Session not found");
@@ -820,6 +820,8 @@ export async function completeTestSessionAdmin(req, res) {
     const newStatus = complete === true ? "COMPLETED" : "PENDING";
     const historyUpdate = { status: newStatus };
     if (notes !== undefined) historyUpdate.notes = notes;
+    // Lock device on first save — cannot be changed once set
+    if (device_id && !session.device_id) historyUpdate.device_id = device_id;
     const updated = await updateTestHistoryDb(history_id, historyUpdate);
 
     return res.status(200).send({

@@ -78,10 +78,8 @@ function shortMethod(raw) {
 }
 
 function methodCell(r) {
-  const specimen = r.specimen_type || "";
-  const method   = shortMethod(r.method_used || r.method || "");
-  if (specimen === "Calculated") return "Calculated";
-  if (specimen) return `${specimen} | ${method}`;
+  const method = shortMethod(r.method_used || r.method || "");
+  if ((r.specimen_type || "") === "Calculated") return "Calculated";
   return method || "-";
 }
 
