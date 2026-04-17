@@ -68,6 +68,21 @@ function statusColor(status) {
   return BLACK;
 }
 
+/**
+ * Replace characters outside PDFKit's built-in Helvetica glyph set (WinAnsi).
+ * Must be called on every string before it is passed to doc.text().
+ * Key offenders: μ (U+03BC micro), µ (U+00B5 micro sign).
+ */
+function sanitize(str) {
+  if (!str) return str;
+  return str
+    .replace(/[μµ]/g, "u")    // micro → u  (cell/uL, ug/dL, umol/L)
+    .replace(/[–—]/g, "-")    // en/em dash → hyphen
+    .replace(/≥/g,    ">=")
+    .replace(/≤/g,    "<=")
+    .replace(/[^\x00-\xFF]/g, "?"); // catch-all for any other non-Latin-1
+}
+
 function shortMethod(raw) {
   if (!raw) return "-";
   return raw
@@ -86,9 +101,9 @@ function methodCell(r) {
 function bioReference(r, gender) {
   if (r.reference_text) {
     const firstLine = r.reference_text.split("\n")[0].trim();
-    if (firstLine) return firstLine;
+    if (firstLine) return sanitize(firstLine);
   }
-  const unit = r.test_type_unit || r.unit || "";
+  const unit = sanitize(r.test_type_unit || r.unit || "");
   const g = (gender || "").toUpperCase();
   const min =
     g === "MALE"   && r.male_min   != null ? Number(r.male_min)   :
@@ -255,11 +270,12 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
   // ── Data rows ───────────────────────────────────────────────────────────────
   results.forEach((r) => {
     const status     = statusFor(r, patientGender);
-    const unit       = r.test_type_unit || r.unit || "";
+    const unit       = sanitize(r.test_type_unit || r.unit || "");
     const rawVal     = r.value_text != null
       ? r.value_text
       : (r.value_num != null ? String(r.value_num) : "-");
-    const resDisplay = (unit && unit !== "Positive/Negative") ? `${rawVal} ${unit}` : rawVal;
+    // Qualitative results (Positive/Negative) never get a unit appended
+    const resDisplay = (r.value_text != null || !unit) ? rawVal : `${rawVal} ${unit}`;
     const resColor   = colorResults && status ? statusColor(status) : BLACK;
 
     // Row border (draw before text so borders don't overdraw text)
@@ -403,12 +419,12 @@ export function generateBulkReportPdf(histories, meta = {}) {
 
       for (const res of results) {
         const tt      = res.testType || {};
-        const unit    = tt.unit || "";
+        const unit    = sanitize(tt.unit || "");
         const rawVal  = res.value_text != null
           ? res.value_text
           : (res.value_num != null ? String(res.value_num) : "-");
-        const resDisplay = (unit && unit !== "Positive/Negative")
-          ? `${rawVal} ${unit}` : rawVal;
+        // Qualitative results never get a unit appended
+        const resDisplay = (res.value_text != null || !unit) ? rawVal : `${rawVal} ${unit}`;
 
         const flatR = {
           is_qualitative: tt.is_qualitative,

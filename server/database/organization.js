@@ -20,6 +20,10 @@ const Organization = sequelize.define(
       allowNull: false,
       defaultValue: "ACTIVE",
     },
+    plan_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
   },
   {
     timestamps: true,

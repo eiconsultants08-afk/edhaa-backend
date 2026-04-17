@@ -5,17 +5,19 @@
  * Edit SEED_CONFIG to match your environment — everything else is automatic.
  *
  * Creates / upserts (safe to run multiple times):
- *   - Organisation, Department, real Admin  (from SEED_CONFIG)
+ *   - 3 plans         : basic, premium, edhha_custom
+ *   - Organisation, Department, real Admin  (from SEED_CONFIG)  → premium plan
+ *   - EIPL demo data  : 4 accounts, 2 devices, 5 patients, 37 test types, 5 sessions
  *
- * Wipes and recreates demo data every run:
- *   - 4 accounts  : admin.demo, tech.raj (WORKING), tech.meena (INACTIVE), tech.suresh (INACTIVE)
- *   - 2 devices   : DEV-DEMO-001 BIO-CHEQ (blood), DEV-DEMO-002 BK150 (urine) — both assigned to tech.raj
- *   - 5 patients  : fixed codes 00001–00005, fixed UUIDs
- *   - 37 test types: 20 blood (Sheet1 non-calculated) + 17 urine (Sheet2)
- *   - 5 sessions  : blood + urine + PENDING to cover all app workflows
+ * Wipes and recreates every run:
+ *   EIPL demo  : admin.demo / tech.raj / tech.meena / tech.suresh
+ *   EDHHA org  : full org + edhha.admin / edhha.tech + 2 devices + 31 test types + 2 patients + 3 sessions
  *
  * Run:  node server/seed.js
- * Password for all accounts: Demo@1234
+ *
+ * Passwords:
+ *   EIPL accounts : Demo@1234
+ *   EDHHA accounts: Edhha@1234
  */
 
 import "./secret/secrets.js";
@@ -32,6 +34,7 @@ import Devices            from "./database/devices.js";
 import TestTypes          from "./database/test_types.js";
 import TestHistory        from "./database/test_history.js";
 import PatientTestResults from "./database/patient_test_results.js";
+import Plans              from "./database/plans.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEED_CONFIG — edit this block when setting up on a new machine
@@ -57,18 +60,78 @@ const SEED_CONFIG = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEMO DATA
+// PLANS — feature tiers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PLAN_DEFS = [
+  {
+    name:         "basic",
+    tier:         "basic",
+    display_name: "Basic",
+    description:  "Urine analysis only — entry-level clinic package.",
+    config: {
+      allowed_specimen_types: ["Urine"],
+      all_tests:              false,
+    },
+  },
+  {
+    name:         "premium",
+    tier:         "premium",
+    display_name: "Premium",
+    description:  "Full catalogue — all blood and urine test types, all device models.",
+    config: {
+      allowed_specimen_types: ["Blood", "Urine"],
+      all_tests:              true,
+    },
+  },
+  {
+    name:         "edhha_custom",
+    tier:         "custom",
+    display_name: "Edhha Custom",
+    description:  "Custom plan for Edhha Diagnostics: selected serum biochemistry blood panel + full urine analysis.",
+    config: {
+      allowed_specimen_types: ["Blood", "Urine"],
+      allowed_blood_tests: [
+        "Hb", "RBS", "S. Creatinine", "S. Urea", "S. Uric Acid",
+        "S. Total Bilirubin", "S. Direct Bilirubin", "S. Albumin", "S. TP",
+        "S. Calcium", "S. TC", "S. Triglycerides", "S. HDL-C", "HbA1C",
+      ],
+      allowed_device_models: [
+        "BIO-CHEQ (BQ-A1-01 Series)",
+        "Urine Analyzer (BK150)",
+      ],
+    },
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEMO DATA — EIPL
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEMO_USERNAMES = ["admin.demo", "tech.raj", "tech.meena", "tech.suresh"];
 
-const PATIENTS = [
+const EIPL_PATIENTS = [
   { uuid: "b0000000-0000-4000-8000-000000000001", name: "Arjun Sharma",  gender: "MALE",   dob: "1980-04-12", phone: "9810011001", email: "arjun.sharma@mail.com"  },
   { uuid: "b0000000-0000-4000-8000-000000000002", name: "Preethi Nair",  gender: "FEMALE", dob: "1993-07-25", phone: "9810011002", email: "preethi.nair@mail.com"  },
   { uuid: "b0000000-0000-4000-8000-000000000003", name: "Mohammed Rafi", gender: "MALE",   dob: "1975-11-03", phone: "9810011003", email: "mohammed.rafi@mail.com" },
   { uuid: "b0000000-0000-4000-8000-000000000004", name: "Sunita Devi",   gender: "FEMALE", dob: "1988-02-18", phone: "9810011004", email: "sunita.devi@mail.com"   },
   { uuid: "b0000000-0000-4000-8000-000000000005", name: "Vikram Patel",  gender: "MALE",   dob: "1965-09-30", phone: "9810011005", email: "vikram.patel@mail.com"  },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEMO DATA — EDHHA
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EDHHA_USERNAMES = ["edhha.admin", "edhha.tech"];
+
+const EDHHA_PATIENTS = [
+  { uuid: "c0000000-0000-4000-8000-000000000001", name: "Ravi Kumar",    gender: "MALE",   dob: "1978-03-15", phone: "9820022001", email: "ravi.kumar@mail.com"    },
+  { uuid: "c0000000-0000-4000-8000-000000000002", name: "Lakshmi Reddy", gender: "FEMALE", dob: "1990-08-22", phone: "9820022002", email: "lakshmi.reddy@mail.com" },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEST TYPE CATALOGUE
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── Blood tests — Sheet1, non-calculated only (20 tests) ─────────────────────
 
@@ -216,8 +279,6 @@ const BLOOD_TESTS = [
 ];
 
 // ── Urine tests — Sheet2, all 17 tests ───────────────────────────────────────
-// Qualitative (is_qualitative: true) → Positive/Negative result buttons in app
-// Quantitative (is_qualitative: false) → numeric input
 
 const URINE_TESTS = [
   {
@@ -341,15 +402,61 @@ const URINE_TESTS = [
   },
 ];
 
-const TEST_TYPES = [...BLOOD_TESTS, ...URINE_TESTS];
+// Full EIPL catalogue (all 37)
+const EIPL_TEST_TYPES = [...BLOOD_TESTS, ...URINE_TESTS];
 
-// ── Helper ────────────────────────────────────────────────────────────────────
+// Edhha custom plan — 14 blood tests (from image) + all 17 urine tests = 31 total
+const EDHHA_BLOOD_TEST_NAMES = new Set([
+  "Hb", "RBS", "S. Creatinine", "S. Urea", "S. Uric Acid",
+  "S. Total Bilirubin", "S. Direct Bilirubin", "S. Albumin", "S. TP",
+  "S. Calcium", "S. TC", "S. Triglycerides", "S. HDL-C", "HbA1C",
+]);
+const EDHHA_TEST_TYPES = [
+  ...BLOOD_TESTS.filter(t => EDHHA_BLOOD_TEST_NAMES.has(t.name)),
+  ...URINE_TESTS,
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
 
 function daysAgo(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
   d.setHours(9, 0, 0, 0);
   return d;
+}
+
+function buildTestTypeRows(types, org_id) {
+  return types.map(t => ({
+    test_type_id:   randomUUID(),
+    org_id,
+    name:           t.name,
+    unit:           t.unit,
+    method:         t.method_options?.[0] ?? null,
+    normal_min:     t.normal_min,
+    normal_max:     t.normal_max,
+    male_min:       t.male_min,
+    male_max:       t.male_max,
+    female_min:     t.female_min,
+    female_max:     t.female_max,
+    category:       t.category,
+    method_options: t.method_options,
+    reference_text: t.reference_text,
+    critical_low:   t.critical_low,
+    critical_high:  t.critical_high,
+    is_qualitative: t.is_qualitative,
+    specimen_type:  t.specimen_type,
+    is_active:      true,
+  }));
+}
+
+async function nextPatientCode() {
+  const [row] = await sequelize.query(
+    `SELECT nextval('patients_patient_code_seq')::int AS val`,
+    { type: sequelize.QueryTypes.SELECT }
+  );
+  return row.val;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -362,7 +469,7 @@ async function seed() {
   await sequelize.authenticate();
   console.log("✅ DB connected\n");
 
-  // ── Sync (creates missing tables on fresh machine) ────────────────────────────
+  // ── Sync (creates missing tables) ────────────────────────────────────────────
   await sequelize.sync();
   console.log("✅ Tables synced\n");
 
@@ -375,6 +482,9 @@ async function seed() {
   await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS organizations_org_code_seq START 1;`);
   await sequelize.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS org_code INTEGER;`);
   await sequelize.query(`ALTER TABLE organizations ALTER COLUMN org_code SET DEFAULT nextval('organizations_org_code_seq');`);
+
+  // plan_id FK on organizations (nullable so existing rows are unaffected until updated)
+  await sequelize.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS plan_id UUID;`);
 
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS category TEXT;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS method_options JSONB;`);
@@ -396,7 +506,30 @@ async function seed() {
 
   console.log("✅ Schema patches applied\n");
 
-  // ── 1. Upsert Org ─────────────────────────────────────────────────────────────
+  // ── 1. Upsert plans ───────────────────────────────────────────────────────────
+  console.log("📋 Upserting plans …");
+  const planMap = {};
+  for (const pd of PLAN_DEFS) {
+    const [plan] = await Plans.findOrCreate({
+      where: { name: pd.name },
+      defaults: {
+        plan_id:      randomUUID(),
+        tier:         pd.tier,
+        display_name: pd.display_name,
+        description:  pd.description,
+        config:       pd.config,
+      },
+    });
+    // Keep config in sync on re-runs
+    await plan.update({ tier: pd.tier, display_name: pd.display_name, description: pd.description, config: pd.config });
+    planMap[pd.name] = plan.get({ plain: true });
+    console.log(`   ${pd.tier.padEnd(8)} → ${pd.name}  (${plan.plan_id})`);
+  }
+  const premiumPlan   = planMap["premium"];
+  const edhhaCustomPlan = planMap["edhha_custom"];
+  console.log("");
+
+  // ── 2. Upsert EIPL org → assign premium plan ──────────────────────────────────
   let org = await Organization.findOne({ where: { code: SEED_CONFIG.org.code }, raw: true });
   if (!org) {
     console.log(`🏢 Creating org "${SEED_CONFIG.org.org_name}" …`);
@@ -408,9 +541,14 @@ async function seed() {
       phone:    SEED_CONFIG.org.phone,
       email:    SEED_CONFIG.org.email,
       status:   "ACTIVE",
+      plan_id:  premiumPlan.plan_id,
     })).get({ plain: true });
   } else {
-    console.log(`📌 Org found: "${org.org_name}"`);
+    await sequelize.query(
+      `UPDATE organizations SET plan_id = :pid WHERE org_id = :oid`,
+      { replacements: { pid: premiumPlan.plan_id, oid: org.org_id } }
+    );
+    console.log(`📌 Org found: "${org.org_name}" → plan set to premium`);
   }
   const org_id = org.org_id;
   await sequelize.query(
@@ -418,7 +556,13 @@ async function seed() {
     { replacements: { oid: org_id } }
   );
 
-  // ── 2. Upsert Department ──────────────────────────────────────────────────────
+  // Assign premium to any other pre-existing orgs with no plan
+  await sequelize.query(
+    `UPDATE organizations SET plan_id = :pid WHERE plan_id IS NULL`,
+    { replacements: { pid: premiumPlan.plan_id } }
+  );
+
+  // ── 3. Upsert Department ──────────────────────────────────────────────────────
   let dept = await Department.findOne({ where: { department_name: SEED_CONFIG.dept.department_name }, raw: true });
   if (!dept) {
     console.log(`🏬 Creating dept "${SEED_CONFIG.dept.department_name}" …`);
@@ -431,8 +575,9 @@ async function seed() {
   }
   const department_id = dept.department_id;
 
-  // ── 3. Upsert real admin ──────────────────────────────────────────────────────
-  const hash = await bcrypt.hash("Demo@1234", 10);
+  // ── 4. Upsert real admin ──────────────────────────────────────────────────────
+  const hashDemo  = await bcrypt.hash("Demo@1234",  10);
+  const hashEdhha = await bcrypt.hash("Edhha@1234", 10);
 
   let realAdmin = await Users.findOne({ where: { username: SEED_CONFIG.realAdmin.username }, raw: true });
   if (!realAdmin) {
@@ -443,19 +588,19 @@ async function seed() {
       username: SEED_CONFIG.realAdmin.username,
       email:    SEED_CONFIG.realAdmin.email,
       phone:    SEED_CONFIG.realAdmin.phone,
-      password: hash, org_id, department_id, status: "ACTIVE",
+      password: hashDemo, org_id, department_id, status: "ACTIVE",
     })).get({ plain: true });
   } else {
     await sequelize.query(
       `UPDATE users SET password = :pw, org_id = :oid, department_id = :did WHERE user_id = :uid`,
-      { replacements: { pw: hash, oid: org_id, did: department_id, uid: realAdmin.user_id } }
+      { replacements: { pw: hashDemo, oid: org_id, did: department_id, uid: realAdmin.user_id } }
     );
     console.log(`📌 Real admin found: "${realAdmin.username}" (password reset)`);
   }
   console.log("");
 
-  // ── 4. Wipe demo data ─────────────────────────────────────────────────────────
-  console.log("🗑  Wiping demo data …");
+  // ── 5. Wipe EIPL demo data ────────────────────────────────────────────────────
+  console.log("🗑  Wiping EIPL demo data …");
   await sequelize.query(`DELETE FROM patient_test_results WHERE org_id = :oid`, { replacements: { oid: org_id } });
   await sequelize.query(`DELETE FROM test_histories      WHERE org_id = :oid`, { replacements: { oid: org_id } });
   await sequelize.query(`DELETE FROM test_types          WHERE org_id = :oid`, { replacements: { oid: org_id } });
@@ -469,7 +614,7 @@ async function seed() {
     `DELETE FROM devices WHERE device_id IN ('DEV-DEMO-001','DEV-DEMO-002') OR serial_no IN ('SN-DEMO-001','SN-DEMO-002')`
   );
 
-  // Cross-org user cleanup (covers data owned by demo accounts under a different org on this RDS)
+  // Cross-org user cleanup
   for (const uname of DEMO_USERNAMES) {
     const found = await sequelize.query(
       `SELECT user_id FROM users WHERE username = :u LIMIT 1`,
@@ -493,38 +638,38 @@ async function seed() {
   }
   console.log("   Done.\n");
 
-  // ── 5. Reset patient_code sequence ────────────────────────────────────────────
+  // ── 6. Reset patient_code sequence ────────────────────────────────────────────
   await sequelize.query(`SELECT setval('patients_patient_code_seq', 1, false);`);
 
-  // ── 6. Create demo accounts ───────────────────────────────────────────────────
-  console.log("👤 Creating accounts …");
+  // ── 7. Create EIPL demo accounts ──────────────────────────────────────────────
+  console.log("👤 Creating EIPL accounts …");
 
   const demoAdmin = await Users.create({
     user_id: randomUUID(), role: "ADMIN",
     name: "Demo Admin", username: "admin.demo",
     email: "admin.demo@demo.com", phone: "9900000001",
-    password: hash, org_id, department_id, status: "ACTIVE",
+    password: hashDemo, org_id, department_id, status: "ACTIVE",
   });
 
   const techRaj = await Users.create({
     user_id: randomUUID(), role: "TECHNICIAN",
     name: "Raj Kulkarni", username: "tech.raj",
     email: "raj.kulkarni@demo.com", phone: "9900000101",
-    password: hash, org_id, department_id, status: "WORKING",
+    password: hashDemo, org_id, department_id, status: "WORKING",
   });
 
   await Users.create({
     user_id: randomUUID(), role: "TECHNICIAN",
     name: "Meena Iyer", username: "tech.meena",
     email: "meena.iyer@demo.com", phone: "9900000102",
-    password: hash, org_id, department_id, status: "INACTIVE",
+    password: hashDemo, org_id, department_id, status: "INACTIVE",
   });
 
   await Users.create({
     user_id: randomUUID(), role: "TECHNICIAN",
     name: "Suresh Nair", username: "tech.suresh",
     email: "suresh.nair@demo.com", phone: "9900000103",
-    password: hash, org_id, department_id, status: "INACTIVE",
+    password: hashDemo, org_id, department_id, status: "INACTIVE",
   });
 
   console.log(`   admin.demo  / Demo@1234 — Demo Admin     (ADMIN)`);
@@ -532,8 +677,8 @@ async function seed() {
   console.log(`   tech.meena  / Demo@1234 — Meena Iyer     (TECHNICIAN · INACTIVE)`);
   console.log(`   tech.suresh / Demo@1234 — Suresh Nair    (TECHNICIAN · INACTIVE)\n`);
 
-  // ── 7. Create devices ─────────────────────────────────────────────────────────
-  console.log("🖥  Creating devices …");
+  // ── 8. Create EIPL devices ────────────────────────────────────────────────────
+  console.log("🖥  Creating EIPL devices …");
 
   await Devices.create({
     device_id: "DEV-DEMO-001", org_id,
@@ -556,78 +701,40 @@ async function seed() {
   console.log(`   DEV-DEMO-001 → tech.raj  (BIO-CHEQ BQ-A1-01 — Blood)`);
   console.log(`   DEV-DEMO-002 → tech.raj  (Urine Analyzer BK150 — Urine)\n`);
 
-  // ── 8. Create test types (37 total) ───────────────────────────────────────────
-  console.log("🔬 Creating test types …");
+  // ── 9. Create EIPL test types (37 total) ──────────────────────────────────────
+  console.log("🔬 Creating EIPL test types …");
 
-  const createdTypes = await TestTypes.bulkCreate(
-    TEST_TYPES.map(t => ({
-      test_type_id:   randomUUID(),
-      org_id,
-      name:           t.name,
-      unit:           t.unit,
-      method:         t.method_options?.[0] ?? null,
-      normal_min:     t.normal_min,
-      normal_max:     t.normal_max,
-      male_min:       t.male_min,
-      male_max:       t.male_max,
-      female_min:     t.female_min,
-      female_max:     t.female_max,
-      category:       t.category,
-      method_options: t.method_options,
-      reference_text: t.reference_text,
-      critical_low:   t.critical_low,
-      critical_high:  t.critical_high,
-      is_qualitative: t.is_qualitative,
-      specimen_type:  t.specimen_type,
-      is_active:      true,
-    })),
-    { returning: true }
-  );
+  const ciplCreated = await TestTypes.bulkCreate(buildTestTypeRows(EIPL_TEST_TYPES, org_id), { returning: true });
+  const ciplByName = {};
+  ciplCreated.forEach(r => { ciplByName[r.name] = r; });
 
-  const typeByName = {};
-  createdTypes.forEach(r => { typeByName[r.name] = r; });
+  console.log(`   ${BLOOD_TESTS.length} blood + ${URINE_TESTS.length} urine = ${EIPL_TEST_TYPES.length} total\n`);
 
-  const bloodCount = BLOOD_TESTS.length;
-  const urineCount = URINE_TESTS.length;
-  console.log(`   ${bloodCount} blood test types + ${urineCount} urine test types = ${bloodCount + urineCount} total\n`);
+  // ── 10. Create EIPL patients ──────────────────────────────────────────────────
+  console.log("🧑‍⚕️ Creating EIPL patients …");
 
-  // ── 9. Create patients ────────────────────────────────────────────────────────
-  console.log("🧑‍⚕️ Creating patients …");
-
-  const patients = [];
-  for (const p of PATIENTS) {
-    const code = await sequelize.query(
-      `SELECT nextval('patients_patient_code_seq')::int AS val`,
-      { type: sequelize.QueryTypes.SELECT }
-    );
+  const ciplPatients = [];
+  for (const p of EIPL_PATIENTS) {
+    const code = await nextPatientCode();
     const patient = await Patients.create({
-      patient_id:   p.uuid,
-      patient_code: code[0].val,
-      org_id,
-      name:         p.name,
-      gender:       p.gender,
-      dob:          p.dob,
-      phone:        p.phone,
-      email:        p.email,
-      created_by:   techRaj.user_id,
+      patient_id: p.uuid, patient_code: code, org_id,
+      name: p.name, gender: p.gender, dob: p.dob, phone: p.phone, email: p.email,
+      created_by: techRaj.user_id,
     });
-    patients.push({ ...patient.get({ plain: true }), gender: p.gender });
+    ciplPatients.push({ ...patient.get({ plain: true }), gender: p.gender });
   }
-
   console.log(`   5 patients created (codes 00001–00005)\n`);
 
-  // ── 10. Create test sessions ──────────────────────────────────────────────────
-  console.log("📋 Creating sessions …");
+  // ── 11. Create EIPL sessions ──────────────────────────────────────────────────
+  console.log("📋 Creating EIPL sessions …");
 
-  const [p1, p2, p3, p4] = patients;  // p5 left with no sessions (tests empty state)
-
-  async function makeSession({ patient, performer, device_id, daysBack, status, notes, tests }) {
+  async function makeSession({ org_id, dept_id, typeByName, patient, performer, device_id, daysBack, status, notes, tests }) {
     const history = await TestHistory.create({
       history_id:         randomUUID(),
       patient_id:         patient.patient_id,
       patient_code:       patient.patient_code,
       org_id,
-      department_id,
+      department_id:      dept_id,
       device_id,
       entered_by_user_id: performer.user_id,
       test_date:          daysAgo(daysBack),
@@ -637,7 +744,7 @@ async function seed() {
 
     const rows = tests.map(({ typeName, value_num, value_text }) => {
       const tt = typeByName[typeName];
-      if (!tt) throw new Error(`Unknown test type name: "${typeName}" — check TEST_TYPES`);
+      if (!tt) throw new Error(`Unknown test type name: "${typeName}"`);
       return {
         result_id:    randomUUID(),
         history_id:   history.history_id,
@@ -655,51 +762,53 @@ async function seed() {
     return history;
   }
 
-  // Session 1 — Arjun (Male), COMPLETED, blood panel
+  const [p1, p2, p3, p4] = ciplPatients;
+
   await makeSession({
+    org_id, dept_id: department_id, typeByName: ciplByName,
     patient: p1, performer: techRaj, device_id: "DEV-DEMO-001",
     daysBack: 5, status: "COMPLETED", notes: "Routine follow-up",
     tests: [
-      { typeName: "Hb",  value_num: 15.2 },   // NORMAL (male 14–18)
-      { typeName: "RBS", value_num: 225 },     // HIGH (>200)
+      { typeName: "Hb",  value_num: 15.2 },
+      { typeName: "RBS", value_num: 225  },
     ],
   });
 
-  // Session 2 — Preethi (Female), COMPLETED, diabetes check (blood)
   await makeSession({
+    org_id, dept_id: department_id, typeByName: ciplByName,
     patient: p2, performer: techRaj, device_id: "DEV-DEMO-001",
     daysBack: 10, status: "COMPLETED", notes: "Diabetes management check",
     tests: [
-      { typeName: "RBS",   value_num: 180 },   // NORMAL (<200)
-      { typeName: "HbA1C", value_num: 7.8 },   // HIGH (>5.6%, diabetic range)
+      { typeName: "RBS",   value_num: 180 },
+      { typeName: "HbA1C", value_num: 7.8 },
     ],
   });
 
-  // Session 3 — Preethi (Female), COMPLETED, urine analysis (second visit)
   await makeSession({
+    org_id, dept_id: department_id, typeByName: ciplByName,
     patient: p2, performer: demoAdmin, device_id: "DEV-DEMO-002",
     daysBack: 3, status: "COMPLETED", notes: "Urine routine",
     tests: [
-      { typeName: "pH",  value_num: 6.5 },        // NORMAL (5.0–8.0)
-      { typeName: "PRO", value_text: "Negative" }, // Normal
-      { typeName: "BLO", value_text: "Positive" }, // Abnormal
-      { typeName: "GLU", value_text: "Negative" }, // Normal
+      { typeName: "pH",  value_num: 6.5        },
+      { typeName: "PRO", value_text: "Negative" },
+      { typeName: "BLO", value_text: "Positive" },
+      { typeName: "GLU", value_text: "Negative" },
     ],
   });
 
-  // Session 4 — Mohammed (Male), COMPLETED, renal/lipid panel (blood)
   await makeSession({
+    org_id, dept_id: department_id, typeByName: ciplByName,
     patient: p3, performer: techRaj, device_id: "DEV-DEMO-001",
     daysBack: 2, status: "COMPLETED", notes: "Annual health check",
     tests: [
-      { typeName: "Hb",           value_num: 13.8 }, // NORMAL (male 14–18) → LOW actually (13.8 < 14)
-      { typeName: "S. Creatinine", value_num: 1.9 }, // HIGH (>1.25 for male)
-      { typeName: "S. TC",         value_num: 255 }, // HIGH (>200)
+      { typeName: "Hb",            value_num: 13.8 },
+      { typeName: "S. Creatinine", value_num: 1.9  },
+      { typeName: "S. TC",         value_num: 255  },
     ],
   });
 
-  // Session 5 — Sunita (Female), PENDING (no values, no device selected yet)
   await makeSession({
+    org_id, dept_id: department_id, typeByName: ciplByName,
     patient: p4, performer: techRaj, device_id: null,
     daysBack: 1, status: "PENDING", notes: null,
     tests: [
@@ -711,39 +820,254 @@ async function seed() {
 
   console.log("   5 sessions (Blood: 1,2,4 · Urine: 3 · Pending: 5)\n");
 
-  // ── Done ─────────────────────────────────────────────────────────────────────
-  const [orgRow] = await sequelize.query(
+  // ═══════════════════════════════════════════════════════════════
+  //  EDHHA ORG — custom plan
+  // ═══════════════════════════════════════════════════════════════
+
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log(" Setting up EDHHA org (custom plan)");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+  // ── 12. Wipe edhha org ────────────────────────────────────────────────────────
+  console.log("🗑  Wiping edhha org …");
+
+  const existingEdhha = await sequelize.query(
+    `SELECT org_id FROM organizations WHERE code = 'EDHHA01' LIMIT 1`,
+    { type: sequelize.QueryTypes.SELECT }
+  );
+
+  if (existingEdhha.length > 0) {
+    const eid = existingEdhha[0].org_id;
+    await sequelize.query(`DELETE FROM patient_test_results WHERE org_id = :eid`, { replacements: { eid } });
+    await sequelize.query(`DELETE FROM test_histories      WHERE org_id = :eid`, { replacements: { eid } });
+    await sequelize.query(`DELETE FROM test_types          WHERE org_id = :eid`, { replacements: { eid } });
+    await sequelize.query(`DELETE FROM patients            WHERE org_id = :eid`, { replacements: { eid } });
+    await sequelize.query(`DELETE FROM devices             WHERE org_id = :eid`, { replacements: { eid } });
+    await sequelize.query(`DELETE FROM tokens              WHERE org_id = :eid`, { replacements: { eid } });
+    await sequelize.query(`DELETE FROM users WHERE org_id = :eid AND role != 'SUPER_ADMIN'`, { replacements: { eid } });
+    await sequelize.query(`DELETE FROM organizations WHERE org_id = :eid`, { replacements: { eid } });
+  }
+
+  // Cross-org cleanup for edhha serial numbers and usernames
+  await sequelize.query(
+    `DELETE FROM devices WHERE device_id IN ('DEV-EDHHA-001','DEV-EDHHA-002') OR serial_no IN ('SN-EDHHA-001','SN-EDHHA-002')`
+  );
+
+  for (const uname of EDHHA_USERNAMES) {
+    const found = await sequelize.query(
+      `SELECT user_id FROM users WHERE username = :u LIMIT 1`,
+      { replacements: { u: uname }, type: sequelize.QueryTypes.SELECT }
+    );
+    if (found.length > 0) {
+      const uid = found[0].user_id;
+      await sequelize.query(
+        `DELETE FROM patient_test_results WHERE history_id IN (SELECT history_id FROM test_histories WHERE entered_by_user_id = :uid)`,
+        { replacements: { uid } }
+      );
+      await sequelize.query(`DELETE FROM test_histories WHERE entered_by_user_id = :uid`, { replacements: { uid } });
+      await sequelize.query(`DELETE FROM patients WHERE created_by = :uid`, { replacements: { uid } });
+      await sequelize.query(
+        `UPDATE devices SET assigned_to_user_id = NULL, assigned_by_user_id = NULL WHERE assigned_to_user_id = :uid OR assigned_by_user_id = :uid`,
+        { replacements: { uid } }
+      );
+    }
+    await sequelize.query(`DELETE FROM tokens WHERE user_id IN (SELECT user_id FROM users WHERE username = :u)`, { replacements: { u: uname } });
+    await sequelize.query(`DELETE FROM users WHERE username = :u`, { replacements: { u: uname } });
+  }
+
+  console.log("   Done.\n");
+
+  // ── 13. Create edhha org ──────────────────────────────────────────────────────
+  const edhhaOrg = (await Organization.create({
+    org_id:   randomUUID(),
+    org_name: "Edhha Diagnostics",
+    code:     "EDHHA01",
+    address:  "Hyderabad, Telangana",
+    phone:    "9700000000",
+    email:    "info@edhha.com",
+    status:   "ACTIVE",
+    plan_id:  edhhaCustomPlan.plan_id,
+  })).get({ plain: true });
+
+  const edhha_org_id = edhhaOrg.org_id;
+
+  await sequelize.query(
+    `UPDATE organizations SET org_code = nextval('organizations_org_code_seq') WHERE org_id = :oid AND org_code IS NULL`,
+    { replacements: { oid: edhha_org_id } }
+  );
+
+  console.log(`🏢 Created org "Edhha Diagnostics" (plan: edhha_custom)\n`);
+
+  // ── 14. Create edhha department ───────────────────────────────────────────────
+  let edhhaDept = await Department.findOne({ where: { department_name: "Edhha Diagnostics Lab" }, raw: true });
+  if (!edhhaDept) {
+    edhhaDept = (await Department.create({
+      department_id:   randomUUID(),
+      department_name: "Edhha Diagnostics Lab",
+    })).get({ plain: true });
+  }
+  const edhha_dept_id = edhhaDept.department_id;
+
+  // ── 15. Create edhha accounts ─────────────────────────────────────────────────
+  console.log("👤 Creating edhha accounts …");
+
+  const edhhaAdmin = await Users.create({
+    user_id: randomUUID(), role: "ADMIN",
+    name: "Edhha Admin", username: "edhha.admin",
+    email: "admin@edhha.com", phone: "9700000001",
+    password: hashEdhha, org_id: edhha_org_id, department_id: edhha_dept_id, status: "ACTIVE",
+  });
+
+  const edhhaTech = await Users.create({
+    user_id: randomUUID(), role: "TECHNICIAN",
+    name: "Edhha Tech", username: "edhha.tech",
+    email: "tech@edhha.com", phone: "9700000002",
+    password: hashEdhha, org_id: edhha_org_id, department_id: edhha_dept_id, status: "INACTIVE",
+  });
+
+  console.log(`   edhha.admin / Edhha@1234 — Edhha Admin  (ADMIN)`);
+  console.log(`   edhha.tech  / Edhha@1234 — Edhha Tech   (TECHNICIAN · INACTIVE)\n`);
+
+  // ── 16. Create edhha devices ──────────────────────────────────────────────────
+  console.log("🖥  Creating edhha devices …");
+
+  await Devices.create({
+    device_id: "DEV-EDHHA-001", org_id: edhha_org_id,
+    serial_no: "SN-EDHHA-001", model: "BIO-CHEQ (BQ-A1-01 Series)",
+    status: "ACTIVE", firmware_version: "v2.4.1", department_id: edhha_dept_id,
+    assigned_to_user_id: edhhaTech.user_id,
+    assigned_by_user_id: edhhaAdmin.user_id,
+    assigned_at: new Date(),
+  });
+
+  await Devices.create({
+    device_id: "DEV-EDHHA-002", org_id: edhha_org_id,
+    serial_no: "SN-EDHHA-002", model: "Urine Analyzer (BK150)",
+    status: "ACTIVE", firmware_version: "v1.2.0", department_id: edhha_dept_id,
+    assigned_to_user_id: edhhaTech.user_id,
+    assigned_by_user_id: edhhaAdmin.user_id,
+    assigned_at: new Date(),
+  });
+
+  console.log(`   DEV-EDHHA-001 → edhha.tech  (BIO-CHEQ BQ-A1-01 — Blood)`);
+  console.log(`   DEV-EDHHA-002 → edhha.tech  (Urine Analyzer BK150 — Urine)\n`);
+
+  // ── 17. Create edhha test types (31 total) ────────────────────────────────────
+  console.log("🔬 Creating edhha test types (custom plan) …");
+
+  const edhhaCreated = await TestTypes.bulkCreate(buildTestTypeRows(EDHHA_TEST_TYPES, edhha_org_id), { returning: true });
+  const edhhaByName = {};
+  edhhaCreated.forEach(r => { edhhaByName[r.name] = r; });
+
+  const edhhaBloodCount = EDHHA_TEST_TYPES.filter(t => t.specimen_type === "Blood").length;
+  const edhhaUrineCount = EDHHA_TEST_TYPES.filter(t => t.specimen_type === "Urine").length;
+  console.log(`   ${edhhaBloodCount} blood (custom subset) + ${edhhaUrineCount} urine = ${EDHHA_TEST_TYPES.length} total`);
+  console.log(`   Excluded blood tests: S. Chloride, S. Magnesium, S. Phosphorus, S. Potassium, S. Sodium, S. Zinc\n`);
+
+  // ── 18. Create edhha patients ─────────────────────────────────────────────────
+  console.log("🧑‍⚕️ Creating edhha patients …");
+
+  const edhhaPatients = [];
+  for (const p of EDHHA_PATIENTS) {
+    const code = await nextPatientCode();
+    const patient = await Patients.create({
+      patient_id: p.uuid, patient_code: code, org_id: edhha_org_id,
+      name: p.name, gender: p.gender, dob: p.dob, phone: p.phone, email: p.email,
+      created_by: edhhaTech.user_id,
+    });
+    edhhaPatients.push({ ...patient.get({ plain: true }), gender: p.gender });
+  }
+  console.log(`   2 patients created (codes 00006–00007)\n`);
+
+  // ── 19. Create edhha sessions ─────────────────────────────────────────────────
+  console.log("📋 Creating edhha sessions …");
+
+  const [ep1, ep2] = edhhaPatients;
+
+  // Session 1 — Ravi (Male), COMPLETED, blood panel using custom plan tests
+  await makeSession({
+    org_id: edhha_org_id, dept_id: edhha_dept_id, typeByName: edhhaByName,
+    patient: ep1, performer: edhhaTech, device_id: "DEV-EDHHA-001",
+    daysBack: 4, status: "COMPLETED", notes: "Annual blood check",
+    tests: [
+      { typeName: "Hb",            value_num: 14.5 }, // NORMAL (male 14–18)
+      { typeName: "RBS",           value_num: 210  }, // HIGH (>200)
+      { typeName: "HbA1C",         value_num: 6.8  }, // Diabetic (>6.5%)
+      { typeName: "S. Creatinine", value_num: 1.1  }, // NORMAL (male ≤1.25)
+    ],
+  });
+
+  // Session 2 — Lakshmi (Female), COMPLETED, urine analysis
+  await makeSession({
+    org_id: edhha_org_id, dept_id: edhha_dept_id, typeByName: edhhaByName,
+    patient: ep2, performer: edhhaTech, device_id: "DEV-EDHHA-002",
+    daysBack: 2, status: "COMPLETED", notes: "Routine urine",
+    tests: [
+      { typeName: "pH",  value_num: 6.0         },
+      { typeName: "PRO", value_text: "Negative"  },
+      { typeName: "BLO", value_text: "Negative"  },
+      { typeName: "GLU", value_text: "Negative"  },
+      { typeName: "LEU", value_text: "Negative"  },
+    ],
+  });
+
+  // Session 3 — Lakshmi (Female), PENDING blood (no device yet)
+  await makeSession({
+    org_id: edhha_org_id, dept_id: edhha_dept_id, typeByName: edhhaByName,
+    patient: ep2, performer: edhhaAdmin, device_id: null,
+    daysBack: 1, status: "PENDING", notes: null,
+    tests: [
+      { typeName: "Hb"    },
+      { typeName: "S. TC" },
+      { typeName: "S. Triglycerides" },
+    ],
+  });
+
+  console.log("   3 sessions (Blood: 1 · Urine: 2 · Pending: 3)\n");
+
+  // ── Summary ───────────────────────────────────────────────────────────────────
+  const [ciplRow] = await sequelize.query(
     `SELECT org_name, org_code FROM organizations WHERE org_id = :oid`,
     { replacements: { oid: org_id }, type: sequelize.QueryTypes.SELECT }
+  );
+  const [edhhaRow] = await sequelize.query(
+    `SELECT org_name, org_code FROM organizations WHERE org_id = :oid`,
+    { replacements: { oid: edhha_org_id }, type: sequelize.QueryTypes.SELECT }
   );
 
   console.log("🎉 Seed complete!\n");
   console.log("═══════════════════════════════════════════════════════════════");
-  console.log(`  Organisation : ${orgRow?.org_name}  #${String(orgRow?.org_code).padStart(5, "0")}`);
-  console.log(`  Department   : ${dept.department_name}`);
+  console.log(" PLANS");
+  console.log("   basic        — Urine tests only");
+  console.log("   premium      — Full catalogue (all 37 tests)");
+  console.log("   edhha_custom — 14 blood + 17 urine = 31 tests");
   console.log("");
+  console.log(`─── ${ciplRow?.org_name}  #${String(ciplRow?.org_code).padStart(5, "0")}  [premium] ───`);
   console.log("  ADMIN accounts  (password: Demo@1234)");
   console.log(`    ${SEED_CONFIG.realAdmin.username.padEnd(12)} — ${SEED_CONFIG.realAdmin.name} (real admin)`);
-  console.log("    admin.demo   — Demo Admin (seed account)");
-  console.log("");
+  console.log("    admin.demo   — Demo Admin");
   console.log("  TECHNICIAN accounts  (password: Demo@1234)");
   console.log("    tech.raj     — Raj Kulkarni   (WORKING · both devices assigned)");
   console.log("    tech.meena   — Meena Iyer      (INACTIVE)");
   console.log("    tech.suresh  — Suresh Nair     (INACTIVE)");
-  console.log("");
   console.log("  Devices");
-  console.log("    DEV-DEMO-001  BIO-CHEQ BQ-A1-01      → tech.raj  (Blood)");
-  console.log("    DEV-DEMO-002  Urine Analyzer BK150   → tech.raj  (Urine)");
-  console.log("");
+  console.log("    DEV-DEMO-001  BIO-CHEQ BQ-A1-01    → tech.raj  (Blood)");
+  console.log("    DEV-DEMO-002  Urine Analyzer BK150 → tech.raj  (Urine)");
   console.log("  Patients : 5  (codes 00001–00005)");
-  console.log("    00001 Arjun Sharma   — 1 blood session");
-  console.log("    00002 Preethi Nair   — 2 sessions (blood + urine)");
-  console.log("    00003 Mohammed Rafi  — 1 blood session");
-  console.log("    00004 Sunita Devi    — 1 PENDING session");
-  console.log("    00005 Vikram Patel   — no sessions  ← tests empty state");
-  console.log("");
   console.log("  Test types : 37  (20 blood + 17 urine)");
   console.log("  Sessions   : 5   (4 COMPLETED · 1 PENDING)");
+  console.log("");
+  console.log(`─── ${edhhaRow?.org_name}  #${String(edhhaRow?.org_code).padStart(5, "0")}  [edhha_custom] ───`);
+  console.log("  ADMIN accounts  (password: Edhha@1234)");
+  console.log("    edhha.admin  — Edhha Admin");
+  console.log("  TECHNICIAN accounts  (password: Edhha@1234)");
+  console.log("    edhha.tech   — Edhha Tech  (INACTIVE)");
+  console.log("  Devices");
+  console.log("    DEV-EDHHA-001  BIO-CHEQ BQ-A1-01    → edhha.tech  (Blood)");
+  console.log("    DEV-EDHHA-002  Urine Analyzer BK150 → edhha.tech  (Urine)");
+  console.log("  Patients : 2  (codes 00006–00007)");
+  console.log("  Test types : 31  (14 blood custom subset + 17 urine)");
+  console.log("  Sessions   : 3   (2 COMPLETED · 1 PENDING)");
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   process.exit(0);

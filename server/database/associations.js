@@ -7,6 +7,11 @@ import Tokens from "./tokens.js";
 import TestTypes from "./test_types.js";
 import TestHistory from "./test_history.js";
 import PatientTestResults from "./patient_test_results.js";
+import Plans from "./plans.js";
+
+// ── Plans ──────────────────────────────────────────────────────────────────────
+Plans.hasMany(Organization, { foreignKey: "plan_id", as: "organizations" });
+Organization.belongsTo(Plans, { foreignKey: "plan_id", as: "plan" });
 
 // ── TestTypes ──────────────────────────────────────────────────────────────────
 TestTypes.belongsTo(Organization, { foreignKey: "org_id", as: "org" });
@@ -52,4 +57,5 @@ export {
   TestTypes,
   TestHistory,
   PatientTestResults,
+  Plans,
 };
