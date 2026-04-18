@@ -20,6 +20,7 @@ import {
   addSessionResults,
   generateCsvReportTechnician,
   generatePdfReportTechnician,
+  submitUartResult,
 } from './controller.js';
 
 router.get("/patients/:rows/:page?", checkAuthorization, checkIfTechnician, getAllPatients);
@@ -45,5 +46,8 @@ router.put("/test/:result_id", checkAuthorization, checkIfTechnician, updateTest
 // Reports (CSV + PDF, date range required)
 router.get("/reports/csv", checkAuthorization, checkIfTechnician, generateCsvReportTechnician);
 router.get("/reports/pdf", checkAuthorization, checkIfTechnician, generatePdfReportTechnician);
+
+// UART result ingestion
+router.post("/uart/result", checkAuthorization, checkIfTechnician, submitUartResult);
 
 export default router;

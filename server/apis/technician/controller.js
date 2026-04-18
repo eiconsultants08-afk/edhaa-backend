@@ -20,6 +20,7 @@ import {
   countUnfilledResults,
   getResultsForCsvExport,
   getOrgById,
+  createUartTestResult,
 } from "../../database/db.js";
 import { addData, buildTestResultsCsv, failureResponse, getPaginationInfo } from "../../utils.js";
 import moment from "moment-timezone";
@@ -675,5 +676,49 @@ export async function generatePdfReportTechnician(req, res) {
   } catch (err) {
     console.error("generatePdfReportTechnician error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
+  }
+}
+
+export async function submitUartResult(req, res) {
+  try {
+    const { user_id } = req;
+    if (!user_id) return failureResponse(res, 401, "Unauthorized");
+
+    const technician = await getUserByCondition({ user_id });
+    if (!technician) return failureResponse(res, 404, "User not found");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
+
+    const { patient_id, test, val, method } = req.body || {};
+
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+    if (!test)       return failureResponse(res, 400, "test required");
+    if (val == null) return failureResponse(res, 400, "val required");
+
+    const patient = await getPatientByIdFlat({ patient_id });
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+    if (patient.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Patient not in your organization");
+
+    const history = await createUartTestResult({
+      patient_id,
+      test_name:          test,
+      value_num:          Number(val),
+      method_used:        method || null,
+      entered_by_user_id: technician.user_id,
+      department_id:      technician.department_id || null,
+      org_id:             technician.org_id,
+    });
+
+    return res.status(201).send({
+      status: 201,
+      data: { history_id: history.history_id },
+      message: "Result stored successfully",
+    });
+  } catch (err) {
+    console.error("submitUartResult error:", err);
+    return res.status(500).send({ status: 500, message: err.message || "Internal server error" });
   }
 }

@@ -2,6 +2,7 @@ import Users from "./users.js";
 import Tokens from "./tokens.js";
 import Devices from "./devices.js";
 
+import { randomUUID } from "crypto";
 import { Op, fn, col } from "sequelize";
 import sequelize from "./connectdb.js";
 import { constants } from "../constants.js";
@@ -890,5 +891,38 @@ export async function getOrgById(org_id) {
     where: { org_id },
     raw: true,
     attributes: ["org_id", "org_name"],
+  });
+}
+
+export async function createUartTestResult({ patient_id, test_name, value_num, method_used, entered_by_user_id, department_id, org_id }) {
+  return sequelize.transaction(async (t) => {
+    const testType = await TestTypes.findOne({
+      where: { name: test_name, org_id, is_active: true },
+      raw: true,
+      transaction: t,
+    });
+    if (!testType) throw new Error(`Test type "${test_name}" not found in org`);
+
+    const history = await TestHistory.create({
+      history_id:         randomUUID(),
+      patient_id,
+      org_id,
+      department_id:      department_id || null,
+      entered_by_user_id,
+      test_date:          new Date(),
+      status:             "COMPLETED",
+    }, { transaction: t });
+
+    await PatientTestResults.create({
+      result_id:    randomUUID(),
+      history_id:   history.history_id,
+      patient_id,
+      org_id,
+      test_type_id: testType.test_type_id,
+      value_num,
+      method_used:  method_used || null,
+    }, { transaction: t });
+
+    return history;
   });
 }
