@@ -438,8 +438,7 @@ export function buildTestResultsCsv(histories) {
     const weekday  = WEEKDAYS[d.getDay()];
     const patient  = raw.patient  || {};
     const enteredBy = raw.enteredBy || {};
-    const patientCode = patient.patient_code != null
-      ? String(patient.patient_code).padStart(5, "0") : "-";
+    const patientCode = patient.patient_id || "-";
     const gender = patient.gender || "-";
     const age    = csvCalcAge(patient.dob);
     const performer = enteredBy.name || enteredBy.username || "-";

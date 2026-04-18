@@ -15,13 +15,8 @@ const TestHistory = sequelize.define(
     },
 
     patient_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.TEXT,
       allowNull: false,
-    },
-
-    patient_code: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
     },
 
     org_id: {

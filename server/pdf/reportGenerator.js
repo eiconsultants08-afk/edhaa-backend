@@ -176,8 +176,7 @@ function drawPatientInfo(doc, session, startY) {
   const age    = calcAge(session.patient_dob);
   const ageSex = [age != null ? `${age} Yrs` : null, session.patient_gender]
                    .filter(Boolean).join(" / ") || "-";
-  const code   = session.patient_code != null
-    ? String(session.patient_code).padStart(5, "0") : "-";
+  const code   = session.patient_id || "-";
 
   const rows = [
     [
@@ -413,7 +412,7 @@ export function generateBulkReportPdf(histories, meta = {}) {
       const results  = h.results || [];
       const dateStr  = fmtDate(h.test_date);
       const patientLabel = p.name
-        ? `${p.name}${p.patient_code ? " #" + String(p.patient_code).padStart(5, "0") : ""}`
+        ? `${p.name}${p.patient_id ? " #" + p.patient_id : ""}`
         : "-";
       const genderStr = (p.gender || "").charAt(0).toUpperCase() || "-";
 
@@ -575,7 +574,7 @@ export function generateTestReportPdf(result) {
     patient_dob:     result.patient_dob,
     patient_phone:   result.patient_phone,
     patient_email:   result.patient_email,
-    patient_code:    result.patient_code,
+    patient_id:      result.patient_id,
     test_date:       result.test_date,
     device_id:       result.device_id,
     notes:           result.notes,

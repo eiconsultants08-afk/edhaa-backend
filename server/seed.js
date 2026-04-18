@@ -111,11 +111,11 @@ const PLAN_DEFS = [
 const DEMO_USERNAMES = ["admin.demo", "tech.raj", "tech.meena", "tech.suresh"];
 
 const EIPL_PATIENTS = [
-  { uuid: "b0000000-0000-4000-8000-000000000001", name: "Arjun Sharma",  gender: "MALE",   dob: "1980-04-12", phone: "9810011001", email: "arjun.sharma@mail.com"  },
-  { uuid: "b0000000-0000-4000-8000-000000000002", name: "Preethi Nair",  gender: "FEMALE", dob: "1993-07-25", phone: "9810011002", email: "preethi.nair@mail.com"  },
-  { uuid: "b0000000-0000-4000-8000-000000000003", name: "Mohammed Rafi", gender: "MALE",   dob: "1975-11-03", phone: "9810011003", email: "mohammed.rafi@mail.com" },
-  { uuid: "b0000000-0000-4000-8000-000000000004", name: "Sunita Devi",   gender: "FEMALE", dob: "1988-02-18", phone: "9810011004", email: "sunita.devi@mail.com"   },
-  { uuid: "b0000000-0000-4000-8000-000000000005", name: "Vikram Patel",  gender: "MALE",   dob: "1965-09-30", phone: "9810011005", email: "vikram.patel@mail.com"  },
+  { id: "00001", name: "Arjun Sharma",  gender: "MALE",   dob: "1980-04-12", phone: "9810011001", email: "arjun.sharma@mail.com"  },
+  { id: "00002", name: "Preethi Nair",  gender: "FEMALE", dob: "1993-07-25", phone: "9810011002", email: "preethi.nair@mail.com"  },
+  { id: "00003", name: "Mohammed Rafi", gender: "MALE",   dob: "1975-11-03", phone: "9810011003", email: "mohammed.rafi@mail.com" },
+  { id: "00004", name: "Sunita Devi",   gender: "FEMALE", dob: "1988-02-18", phone: "9810011004", email: "sunita.devi@mail.com"   },
+  { id: "00005", name: "Vikram Patel",  gender: "MALE",   dob: "1965-09-30", phone: "9810011005", email: "vikram.patel@mail.com"  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -125,8 +125,8 @@ const EIPL_PATIENTS = [
 const EDHHA_USERNAMES = ["edhha.admin", "edhha.tech"];
 
 const EDHHA_PATIENTS = [
-  { uuid: "c0000000-0000-4000-8000-000000000001", name: "Ravi Kumar",    gender: "MALE",   dob: "1978-03-15", phone: "9820022001", email: "ravi.kumar@mail.com"    },
-  { uuid: "c0000000-0000-4000-8000-000000000002", name: "Lakshmi Reddy", gender: "FEMALE", dob: "1990-08-22", phone: "9820022002", email: "lakshmi.reddy@mail.com" },
+  { id: "00006", name: "Ravi Kumar",    gender: "MALE",   dob: "1978-03-15", phone: "9820022001", email: "ravi.kumar@mail.com"    },
+  { id: "00007", name: "Lakshmi Reddy", gender: "FEMALE", dob: "1990-08-22", phone: "9820022002", email: "lakshmi.reddy@mail.com" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -451,13 +451,6 @@ function buildTestTypeRows(types, org_id) {
   }));
 }
 
-async function nextPatientCode() {
-  const [row] = await sequelize.query(
-    `SELECT nextval('patients_patient_code_seq')::int AS val`,
-    { type: sequelize.QueryTypes.SELECT }
-  );
-  return row.val;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEED
@@ -474,10 +467,30 @@ async function seed() {
   console.log("✅ Tables synced\n");
 
   // ── Schema patches (idempotent) ───────────────────────────────────────────────
-  await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS patients_patient_code_seq START 1;`);
-  await sequelize.query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
-  await sequelize.query(`ALTER TABLE patients ALTER COLUMN patient_code SET DEFAULT nextval('patients_patient_code_seq');`);
-  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS patients_patient_code_unique ON patients(patient_code);`);
+
+  // Migrate patient_id from UUID → TEXT on all three tables (once only)
+  await sequelize.query(`
+    DO $$ BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'patients' AND column_name = 'patient_id' AND data_type = 'uuid'
+      ) THEN
+        ALTER TABLE patient_test_results DROP CONSTRAINT IF EXISTS patient_test_results_patient_id_fkey;
+        ALTER TABLE test_histories       DROP CONSTRAINT IF EXISTS test_histories_patient_id_fkey;
+        ALTER TABLE patients ALTER COLUMN patient_id TYPE TEXT USING patient_id::text;
+        ALTER TABLE test_histories ALTER COLUMN patient_id TYPE TEXT USING patient_id::text;
+        ALTER TABLE patient_test_results ALTER COLUMN patient_id TYPE TEXT USING patient_id::text;
+      END IF;
+    END $$;
+  `);
+
+  // Drop legacy patient_code columns (no longer needed — patient_id IS the display code)
+  await sequelize.query(`ALTER TABLE patients             DROP COLUMN IF EXISTS patient_code;`);
+  await sequelize.query(`ALTER TABLE test_histories       DROP COLUMN IF EXISTS patient_code;`);
+  await sequelize.query(`ALTER TABLE patient_test_results DROP COLUMN IF EXISTS patient_code;`);
+
+  // Sequence for generating 5-digit patient IDs
+  await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS patients_id_seq START 1;`);
 
   await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS organizations_org_code_seq START 1;`);
   await sequelize.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS org_code INTEGER;`);
@@ -496,11 +509,9 @@ async function seed() {
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;`);
 
   await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS method_used TEXT;`);
-  await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
 
   await sequelize.query(`DO $$ BEGIN CREATE TYPE enum_test_history_status AS ENUM ('PENDING','COMPLETED'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
   await sequelize.query(`ALTER TABLE test_histories ADD COLUMN IF NOT EXISTS status enum_test_history_status NOT NULL DEFAULT 'PENDING';`);
-  await sequelize.query(`ALTER TABLE test_histories ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
 
   await sequelize.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`);
 
@@ -638,8 +649,8 @@ async function seed() {
   }
   console.log("   Done.\n");
 
-  // ── 6. Reset patient_code sequence ────────────────────────────────────────────
-  await sequelize.query(`SELECT setval('patients_patient_code_seq', 1, false);`);
+  // ── 6. Reset patient ID sequence ─────────────────────────────────────────────
+  await sequelize.query(`SELECT setval('patients_id_seq', 1, false);`);
 
   // ── 7. Create EIPL demo accounts ──────────────────────────────────────────────
   console.log("👤 Creating EIPL accounts …");
@@ -715,15 +726,14 @@ async function seed() {
 
   const ciplPatients = [];
   for (const p of EIPL_PATIENTS) {
-    const code = await nextPatientCode();
     const patient = await Patients.create({
-      patient_id: p.uuid, patient_code: code, org_id,
+      patient_id: p.id, org_id,
       name: p.name, gender: p.gender, dob: p.dob, phone: p.phone, email: p.email,
       created_by: techRaj.user_id,
     });
     ciplPatients.push({ ...patient.get({ plain: true }), gender: p.gender });
   }
-  console.log(`   5 patients created (codes 00001–00005)\n`);
+  console.log(`   5 patients created (IDs 00001–00005)\n`);
 
   // ── 11. Create EIPL sessions ──────────────────────────────────────────────────
   console.log("📋 Creating EIPL sessions …");
@@ -732,7 +742,6 @@ async function seed() {
     const history = await TestHistory.create({
       history_id:         randomUUID(),
       patient_id:         patient.patient_id,
-      patient_code:       patient.patient_code,
       org_id,
       department_id:      dept_id,
       device_id,
@@ -746,15 +755,14 @@ async function seed() {
       const tt = typeByName[typeName];
       if (!tt) throw new Error(`Unknown test type name: "${typeName}"`);
       return {
-        result_id:    randomUUID(),
-        history_id:   history.history_id,
-        patient_id:   patient.patient_id,
-        patient_code: patient.patient_code,
+        result_id:   randomUUID(),
+        history_id:  history.history_id,
+        patient_id:  patient.patient_id,
         org_id,
         test_type_id: tt.test_type_id,
-        value_num:    status === "PENDING" ? null : (value_num ?? null),
-        value_text:   status === "PENDING" ? null : (value_text ?? null),
-        method_used:  tt.method_options?.[0] ?? null,
+        value_num:   status === "PENDING" ? null : (value_num ?? null),
+        value_text:  status === "PENDING" ? null : (value_text ?? null),
+        method_used: tt.method_options?.[0] ?? null,
       };
     });
 
@@ -969,15 +977,14 @@ async function seed() {
 
   const edhhaPatients = [];
   for (const p of EDHHA_PATIENTS) {
-    const code = await nextPatientCode();
     const patient = await Patients.create({
-      patient_id: p.uuid, patient_code: code, org_id: edhha_org_id,
+      patient_id: p.id, org_id: edhha_org_id,
       name: p.name, gender: p.gender, dob: p.dob, phone: p.phone, email: p.email,
       created_by: edhhaTech.user_id,
     });
     edhhaPatients.push({ ...patient.get({ plain: true }), gender: p.gender });
   }
-  console.log(`   2 patients created (codes 00006–00007)\n`);
+  console.log(`   2 patients created (IDs 00006–00007)\n`);
 
   // ── 19. Create edhha sessions ─────────────────────────────────────────────────
   console.log("📋 Creating edhha sessions …");
@@ -1024,6 +1031,9 @@ async function seed() {
   });
 
   console.log("   3 sessions (Blood: 1 · Urine: 2 · Pending: 3)\n");
+
+  // Advance the sequence past the last seeded patient ID (00007)
+  await sequelize.query(`SELECT setval('patients_id_seq', 7, true);`);
 
   // ── Summary ───────────────────────────────────────────────────────────────────
   const [ciplRow] = await sequelize.query(

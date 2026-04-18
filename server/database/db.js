@@ -293,12 +293,12 @@ export async function getPatientByIdFlat(conditions) {
 }
 
 export async function createPatient(data) {
-  if (!data.patient_code) {
+  if (!data.patient_id) {
     const rows = await sequelize.query(
-      "SELECT nextval('patients_patient_code_seq')::int AS code",
+      "SELECT LPAD(nextval('patients_id_seq')::text, 5, '0') AS id",
       { type: sequelize.QueryTypes.SELECT }
     );
-    data.patient_code = rows[0]?.code || null;
+    data.patient_id = rows[0]?.id;
   }
   return Patients.create(data);
 }
@@ -446,7 +446,6 @@ export async function getTestResultByIdFlat(result_id) {
         [sequelize.col("testType.critical_high"), "critical_high"],
         [sequelize.col("testType.is_qualitative"), "is_qualitative"],
         [sequelize.col("testType.specimen_type"), "specimen_type"],
-        [sequelize.col("patient.patient_code"), "patient_code"],
         [sequelize.col("patient.name"), "patient_name"],
         [sequelize.col("patient.gender"), "patient_gender"],
         [sequelize.col("patient.dob"), "patient_dob"],
@@ -515,7 +514,7 @@ export async function getTestSessionFlat(history_id) {
   const patient = await Patients.findOne({
     where: { patient_id: history.patient_id },
     raw: true,
-    attributes: ["patient_id", "patient_code", "name", "gender", "dob", "phone", "email"],
+    attributes: ["patient_id", "name", "gender", "dob", "phone", "email"],
   });
 
   const results = await PatientTestResults.findAll({
@@ -548,7 +547,6 @@ export async function getTestSessionFlat(history_id) {
 
   return {
     ...history,
-    patient_code: patient?.patient_code ?? null,
     patient_name: patient?.name || "-",
     patient_gender: patient?.gender || "-",
     patient_dob: patient?.dob || "-",
@@ -860,7 +858,7 @@ export async function getResultsForCsvExport(org_id, startDate, endDate, entered
       {
         model: Patients,
         as: "patient",
-        attributes: ["name", "gender", "dob", "patient_code"],
+        attributes: ["patient_id", "name", "gender", "dob"],
         required: false,
       },
       {

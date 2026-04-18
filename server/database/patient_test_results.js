@@ -21,13 +21,8 @@ const PatientTestResults = sequelize.define(
 
     // Kept on the result row for direct patient-scoped queries without joining TestHistory
     patient_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.TEXT,
       allowNull: false,
-    },
-
-    patient_code: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
     },
 
     org_id: {

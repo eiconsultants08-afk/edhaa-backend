@@ -77,13 +77,26 @@ async function startPostgres() {
     await sequelize.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`);
     console.log("✅ users.email column patched (nullable)");
 
-    // Add patient_code before sync() so the column exists when Sequelize inspects the table
-    await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS patients_patient_code_seq;`);
-    await sequelize.query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
-    await sequelize.query(`UPDATE patients SET patient_code = nextval('patients_patient_code_seq') WHERE patient_code IS NULL;`);
-    await sequelize.query(`ALTER TABLE patients ALTER COLUMN patient_code SET DEFAULT nextval('patients_patient_code_seq');`);
-    await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS patients_patient_code_unique ON patients(patient_code);`);
-    console.log("✅ patients.patient_code column patched (5-digit numeric ID)");
+    // Migrate patient_id from UUID → TEXT (runs once; idempotent via type check)
+    await sequelize.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'patients' AND column_name = 'patient_id' AND data_type = 'uuid'
+        ) THEN
+          ALTER TABLE patient_test_results DROP CONSTRAINT IF EXISTS patient_test_results_patient_id_fkey;
+          ALTER TABLE test_histories       DROP CONSTRAINT IF EXISTS test_histories_patient_id_fkey;
+          ALTER TABLE patients ALTER COLUMN patient_id TYPE TEXT USING patient_id::text;
+          ALTER TABLE test_histories ALTER COLUMN patient_id TYPE TEXT USING patient_id::text;
+          ALTER TABLE patient_test_results ALTER COLUMN patient_id TYPE TEXT USING patient_id::text;
+        END IF;
+      END $$;
+    `);
+    await sequelize.query(`ALTER TABLE patients             DROP COLUMN IF EXISTS patient_code;`);
+    await sequelize.query(`ALTER TABLE test_histories       DROP COLUMN IF EXISTS patient_code;`);
+    await sequelize.query(`ALTER TABLE patient_test_results DROP COLUMN IF EXISTS patient_code;`);
+    await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS patients_id_seq START 1;`);
+    console.log("✅ patients.patient_id migrated to TEXT 5-digit format");
 
     // Add org_code — same sequence-backed numeric ID for organizations
     await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS organizations_org_code_seq;`);
@@ -111,15 +124,6 @@ async function startPostgres() {
     // method_used on individual test results
     await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS method_used TEXT;`);
     console.log("✅ patient_test_results.method_used column patched");
-
-    // patient_code on test_histories and patient_test_results — enables direct DB lookup by 5-digit code
-    await sequelize.query(`ALTER TABLE test_histories ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
-    await sequelize.query(`UPDATE test_histories th SET patient_code = p.patient_code FROM patients p WHERE th.patient_id = p.patient_id AND th.patient_code IS NULL;`);
-    console.log("✅ test_histories.patient_code column patched");
-
-    await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS patient_code INTEGER;`);
-    await sequelize.query(`UPDATE patient_test_results ptr SET patient_code = p.patient_code FROM patients p WHERE ptr.patient_id = p.patient_id AND ptr.patient_code IS NULL;`);
-    console.log("✅ patient_test_results.patient_code column patched");
 
     // specimen_type on test types (Blood / Urine / Saliva / Calculated)
     await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS specimen_type TEXT;`);

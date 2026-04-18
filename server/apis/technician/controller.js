@@ -240,7 +240,6 @@ export async function registerTestSession(req, res) {
 
     const history = await createTestHistory({
       patient_id,
-      patient_code: patient.patient_code ?? null,
       org_id: technician.org_id,
       department_id: technician.department_id || null,
       device_id: device_id || null,
@@ -253,7 +252,6 @@ export async function registerTestSession(req, res) {
     const insertData = test_type_ids.map(id => ({
       history_id: history.history_id,
       patient_id,
-      patient_code: patient.patient_code ?? null,
       org_id: technician.org_id,
       test_type_id: id,
       value_num: null,
@@ -570,7 +568,6 @@ export async function addSessionResults(req, res) {
       .map((t) => ({
         history_id,
         patient_id:   session.patient_id,
-        patient_code: session.patient_code ?? null,
         org_id: technician.org_id,
         test_type_id: t.test_type_id,
         value_num:  t.value_num  != null ? Number(t.value_num)  : null,

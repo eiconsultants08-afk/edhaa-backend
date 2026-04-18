@@ -7,13 +7,8 @@ const Patients = sequelize.define(
   "patients",
   {
     patient_id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.TEXT,
       primaryKey: true,
-    },
-
-    patient_code: {
-      type: DataTypes.INTEGER,
     },
 
     org_id: {
@@ -46,11 +41,6 @@ const Patients = sequelize.define(
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",
-    indexes: [
-      // patient_id is the primary key — already indexed and unique in PostgreSQL.
-      // This explicit definition makes it discoverable via sync and skips creation if it exists.
-      { unique: true, fields: ["patient_id"], name: "patients_patient_id_unique" },
-    ],
   }
 );
 
