@@ -183,12 +183,12 @@ function drawPatientInfo(doc, session, startY) {
 
   const rows = [
     [
-      { label: "Patient ID",               value: code                       },
+      { label: "Patient ID",               value: code                                            },
       { label: "Received & Reported Date", value: `${fmtDate(session.test_date)}  ${fmtTime()}` },
     ],
     [
-      { label: "Ref. By",                  value: "-"                        },
-      { label: "Specimen",                 value: "-"                        },
+      { label: "Ref. By",                  value: "-"                                             },
+      { label: "Specimen",                 value: "-"                                             },
     ],
   ];
 

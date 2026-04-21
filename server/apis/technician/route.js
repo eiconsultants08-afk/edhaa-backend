@@ -13,7 +13,7 @@ import {
   getPatientTests,
   getTestResult,
   getTestResultReport,
-  getPatientDateReport,
+  getSessionReport,
   updatePatientRecord,
   updateTestResult,
   updateSession,
@@ -35,7 +35,7 @@ router.get("/test-types", checkAuthorization, checkIfTechnician, getTestTypes);
 router.get("/patient/:id/tests/:rows/:page", checkAuthorization, checkIfTechnician, getPatientTests);
 router.get("/test/:result_id", checkAuthorization, checkIfTechnician, getTestResult);
 router.get("/test/:result_id/report", checkAuthorization, checkIfTechnician, getTestResultReport);
-router.get("/patient/:patient_id/report", checkAuthorization, checkIfTechnician, getPatientDateReport);
+router.get("/session/:history_id/report", checkAuthorization, checkIfTechnician, getSessionReport);
 router.put("/session/:history_id", checkAuthorization, checkIfTechnician, updateSession);
 router.put("/session/:history_id/complete", checkAuthorization, checkIfTechnician, completeTestSession);
 router.post("/session/:history_id/results", checkAuthorization, checkIfTechnician, addSessionResults);

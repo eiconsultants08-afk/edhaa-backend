@@ -557,68 +557,6 @@ export async function getTestSessionFlat(history_id) {
   };
 }
 
-/**
- * Fetch every session (+ results) for a patient on a given local date.
- * @param {string} patient_id
- * @param {string} date — "YYYY-MM-DD" (interpreted as UTC day)
- * @returns {Promise<{patient, test_date, org_name, department_name, results: []}|null>}
- */
-export async function getPatientSessionsOnDate(patient_id, date) {
-  const patient = await Patients.findOne({
-    where: { patient_id },
-    raw: true,
-    attributes: ["patient_id", "name", "gender", "dob", "phone", "email", "org_id"],
-  });
-  if (!patient) return null;
-
-  const histories = await sequelize.query(
-    `
-      SELECT th.history_id, th.test_date, th.notes, th.device_id, th.department_id,
-             d.department_name, u.name AS entered_by_name, u.username AS entered_by_username,
-             o.org_name
-        FROM test_histories th
-        LEFT JOIN departments d  ON d.department_id = th.department_id
-        LEFT JOIN users u        ON u.user_id       = th.entered_by_user_id
-        LEFT JOIN organizations o ON o.org_id       = th.org_id
-       WHERE th.patient_id = :pid
-         AND DATE(th.test_date AT TIME ZONE 'UTC') = :dt::date
-       ORDER BY th.test_date ASC
-    `,
-    { replacements: { pid: patient_id, dt: date }, type: sequelize.QueryTypes.SELECT }
-  );
-  if (!histories.length) return { patient, histories: [], results: [] };
-
-  const historyIds = histories.map((h) => h.history_id);
-
-  const results = await PatientTestResults.findAll({
-    where: { history_id: { [Op.in]: historyIds } },
-    raw: true,
-    subQuery: false,
-    include: [{ model: TestTypes, as: "testType", attributes: [], required: false }],
-    attributes: {
-      include: [
-        [sequelize.col("testType.name"), "test_type_name"],
-        [sequelize.col("testType.unit"), "test_type_unit"],
-        [sequelize.col("testType.normal_min"), "normal_min"],
-        [sequelize.col("testType.normal_max"), "normal_max"],
-        [sequelize.col("testType.male_min"), "male_min"],
-        [sequelize.col("testType.male_max"), "male_max"],
-        [sequelize.col("testType.female_min"), "female_min"],
-        [sequelize.col("testType.female_max"), "female_max"],
-        [sequelize.col("testType.category"), "category"],
-        [sequelize.col("testType.method_options"), "method_options"],
-        [sequelize.col("testType.reference_text"), "reference_text"],
-        [sequelize.col("testType.critical_low"), "critical_low"],
-        [sequelize.col("testType.critical_high"), "critical_high"],
-        [sequelize.col("testType.is_qualitative"), "is_qualitative"],
-        [sequelize.col("testType.specimen_type"), "specimen_type"],
-      ],
-    },
-  });
-
-  return { patient, histories, results };
-}
-
 export async function updateTestHistory(history_id, data) {
   const [rowsUpdated] = await TestHistory.update(data, { where: { history_id } });
   if (rowsUpdated === 0) return null;

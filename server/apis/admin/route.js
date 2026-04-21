@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import { checkAuthorization, checkIfAdmin } from '../../middleware/auth.js';
-import { addDevice, addTechnician, assignDevice, getAllDevices, getAllTechnicians, getDeviceByDeviceId, getDevicesNotAssignToTechnician, getTechnicianDetail, removeTechnician, getAllPatientsAdmin, getPatientByIdAdmin, addPatientAdmin, updatePatientAdmin, getPatientTestsAdmin, getPatientDateReportAdmin, getAnalyticsOverviewAdmin, getAnalyticsChartsAdmin, getTestTypeSessionsAdmin, getTestTypesAdmin, registerTestSessionAdmin, completeTestSessionAdmin, generateCsvReportAdmin, generatePdfReportAdmin } from './controller.js';
+import { addDevice, addTechnician, assignDevice, getAllDevices, getAllTechnicians, getDeviceByDeviceId, getDevicesNotAssignToTechnician, getTechnicianDetail, removeTechnician, getAllPatientsAdmin, getPatientByIdAdmin, addPatientAdmin, updatePatientAdmin, getPatientTestsAdmin, getSessionReportAdmin, getAnalyticsOverviewAdmin, getAnalyticsChartsAdmin, getTestTypeSessionsAdmin, getTestTypesAdmin, registerTestSessionAdmin, completeTestSessionAdmin, generateCsvReportAdmin, generatePdfReportAdmin } from './controller.js';
 
 // // list of users
 router.get("/devices/:rows/:page?", checkAuthorization, checkIfAdmin(), getAllDevices); //...done
@@ -21,7 +21,7 @@ router.get("/patient/:patient_id", checkAuthorization, checkIfAdmin(), getPatien
 router.post("/add/patient", checkAuthorization, checkIfAdmin(), addPatientAdmin);
 router.put("/patient/:patient_id", checkAuthorization, checkIfAdmin(), updatePatientAdmin);
 router.get("/patient/:patient_id/tests/:rows/:page", checkAuthorization, checkIfAdmin(), getPatientTestsAdmin);
-router.get("/patient/:patient_id/report", checkAuthorization, checkIfAdmin(), getPatientDateReportAdmin);
+router.get("/session/:history_id/report", checkAuthorization, checkIfAdmin(), getSessionReportAdmin);
 
 // Analytics
 router.get("/analytics/overview",            checkAuthorization, checkIfAdmin(), getAnalyticsOverviewAdmin);
