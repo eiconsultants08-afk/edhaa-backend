@@ -128,6 +128,12 @@ function fmtDate(iso) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+function fmtTime(d = new Date()) {
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mi}`;
+}
+
 // ── Drawing primitives ─────────────────────────────────────────────────────────
 
 function hline(doc, y, lw = 0.5, color = BLACK) {
@@ -173,23 +179,16 @@ function sectionHead(doc, label, y) {
 function drawPatientInfo(doc, session, startY) {
   let y = sectionHead(doc, "PATIENT INFORMATION", startY) + 2;
 
-  const age    = calcAge(session.patient_dob);
-  const ageSex = [age != null ? `${age} Yrs` : null, session.patient_gender]
-                   .filter(Boolean).join(" / ") || "-";
-  const code   = session.patient_id || "-";
+  const code = session.patient_id || "-";
 
   const rows = [
     [
-      { label: "Patient Name",             value: session.patient_name || "-" },
-      { label: "Age / Sex",                value: ageSex                      },
+      { label: "Patient ID",               value: code                       },
+      { label: "Received & Reported Date", value: `${fmtDate(session.test_date)}  ${fmtTime()}` },
     ],
     [
-      { label: "Received & Reported Date", value: fmtDate(session.test_date)  },
-      { label: "Patient ID",               value: code                        },
-    ],
-    [
-      { label: "Ref. By",                  value: "-"                         },
-      { label: "Specimen",                 value: "-"                         },
+      { label: "Ref. By",                  value: "-"                        },
+      { label: "Specimen",                 value: "-"                        },
     ],
   ];
 
@@ -337,6 +336,23 @@ function drawFooter(doc, y) {
     doc.fillColor(GRAY).font("Helvetica").fontSize(8)
        .text(line, MARGIN, y, { width: CW, lineBreak: false });
     y += 13;
+  });
+
+  // NOTE block
+  y += 6;
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
+     .text("NOTE:", MARGIN, y, { width: CW, lineBreak: false });
+  y += 11;
+
+  const noteLines = [
+    "1. Only pick up the contents.",
+    "2. Rest alignment and formatting based on your own. Just keep it concise.",
+    "3. Keep either Biological reference or Normal ranges based on what the app is generating as of now.",
+  ];
+  noteLines.forEach((line) => {
+    doc.fillColor(GRAY).font("Helvetica").fontSize(7.5)
+       .text(line, MARGIN + 4, y, { width: CW - 4 });
+    y = doc.y + 1;
   });
 
   y += 4;

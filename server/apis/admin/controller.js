@@ -1,6 +1,6 @@
 // controller.js
 import { addData, failureResponse, getPaginationInfo, hashPassword, buildTestResultsCsv } from "../../utils.js";
-import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions, bulkCreatePatientTestResults, bulkUpdateTestResultsBySession, createTestHistory, getTestTypesByIds, getTestTypesByOrg, updateTestHistory as updateTestHistoryDb, getResultsForCsvExport, getOrgById } from "../../database/db.js";
+import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions, bulkCreatePatientTestResults, bulkUpdateTestResultsBySession, createTestHistory, getTestTypesByIds, getTestTypesByOrg, updateTestHistory as updateTestHistoryDb, getResultsForCsvExport, getOrgById, getPatientSessionsOnDate } from "../../database/db.js";
 import moment from 'moment-timezone';
 import { constants } from "../../constants.js";
 import { emitToUser } from "../../socket.js";
@@ -597,24 +597,45 @@ export async function getPatientTestsAdmin(req, res) {
   }
 }
 
-export async function getSessionReportAdmin(req, res) {
+/**
+ * GET /admin/patient/:patient_id/report?date=YYYY-MM-DD
+ * Aggregates every session on that date into a single PDF.
+ */
+export async function getPatientDateReportAdmin(req, res) {
   try {
     const { user_id } = req;
-    const { history_id } = req.params;
-    if (!history_id) return failureResponse(res, 400, "history_id required");
+    const { patient_id } = req.params;
+    const { date } = req.query;
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return failureResponse(res, 400, "date (YYYY-MM-DD) required");
 
     const admin = await getAdminContext(user_id, res);
     if (!admin) return;
 
-    const session = await getTestSessionFlat(history_id);
-    if (!session) return failureResponse(res, 404, "Session not found");
-    if (session.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
+    const bundle = await getPatientSessionsOnDate(patient_id, date);
+    if (!bundle) return failureResponse(res, 404, "Patient not found");
+    if (bundle.patient.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
+    if (!bundle.results.length) return failureResponse(res, 404, "No tests found for this date");
+
+    const firstHist = bundle.histories[0] || {};
+    const session = {
+      org_name: firstHist.org_name || "",
+      department_name: firstHist.department_name || "",
+      test_date: `${date}T00:00:00Z`,
+      patient_id: bundle.patient.patient_id,
+      patient_name: bundle.patient.name,
+      patient_gender: bundle.patient.gender,
+      patient_dob: bundle.patient.dob,
+      results: bundle.results,
+    };
 
     const pdfBuffer = await generateSessionReportPdf(session);
     const pdf_base64 = pdfBuffer.toString("base64");
-    return res.status(200).send({ status: 200, data: { pdf_base64 } });
+    const [y, m, d] = date.split("-");
+    const filename = `${bundle.patient.patient_id}_${d}-${m}-${y}.pdf`;
+    return res.status(200).send({ status: 200, data: { pdf_base64, filename } });
   } catch (err) {
-    console.error("getSessionReportAdmin error:", err);
+    console.error("getPatientDateReportAdmin error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }

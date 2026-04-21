@@ -134,6 +134,76 @@ async function startPostgres() {
     await sequelize.query(`UPDATE test_types SET is_qualitative = true WHERE LOWER(unit) LIKE '%positive%' AND is_qualitative = false;`);
     console.log("✅ test_types.is_qualitative backfilled for Positive/Negative tests");
 
+    // Backfill unit / reference_text / ranges / category for canonical tests when blank.
+    // Uses COALESCE so custom per-org edits (non-null values) are preserved.
+    const TEST_BACKFILL = [
+      // Serum
+      {
+        names: ["HbA1C", "HbA1c", "Hb A1C", "Glycated Haemoglobin"],
+        unit: "%", category: "Serum Biochemistry", specimen_type: "Blood", is_qualitative: false,
+        normal_min: null, normal_max: 5.6,
+        reference_text: "Non-diabetic: <=5.6%\nPre-diabetic: 5.7-6.4%\nDiabetic: >=6.5%",
+      },
+      {
+        names: ["S. Triglycerides", "Triglycerides"],
+        unit: "mg/dL", category: "Serum Biochemistry", specimen_type: "Blood", is_qualitative: false,
+        normal_min: null, normal_max: 150,
+        reference_text: "Normal: <150 mg/dL\nBorderline High: 150-199 mg/dL\nHigh: 200-499 mg/dL\nVery High: >=500 mg/dL",
+      },
+      {
+        names: ["S. TC", "Total Cholesterol", "S. Total Cholesterol", "Cholesterol"],
+        unit: "mg/dL", category: "Serum Biochemistry", specimen_type: "Blood", is_qualitative: false,
+        normal_min: null, normal_max: 200,
+        reference_text: "Desirable: <200 mg/dL\nBorderline High: 200-239 mg/dL\nHigh: >=240 mg/dL",
+      },
+      // Urine qualitative
+      {
+        names: ["Colour", "Color"],
+        unit: "", category: "Urine test", specimen_type: "Urine", is_qualitative: true,
+        normal_min: null, normal_max: null,
+        reference_text: "Pale Yellow",
+      },
+      {
+        names: ["Transparency", "Appearance"],
+        unit: "", category: "Urine test", specimen_type: "Urine", is_qualitative: true,
+        normal_min: null, normal_max: null,
+        reference_text: "Clear",
+      },
+    ];
+
+    for (const t of TEST_BACKFILL) {
+      await sequelize.query(
+        `
+          UPDATE test_types SET
+            unit           = COALESCE(NULLIF(unit, ''), :unit),
+            category       = COALESCE(NULLIF(category, ''), :category),
+            specimen_type  = COALESCE(NULLIF(specimen_type, ''), :specimen_type),
+            reference_text = COALESCE(NULLIF(reference_text, ''), :reference_text),
+            normal_min     = COALESCE(normal_min, :normal_min),
+            normal_max     = COALESCE(normal_max, :normal_max),
+            is_qualitative = CASE
+                               WHEN :is_qualitative = true AND (unit IS NULL OR unit = '')
+                                 THEN true
+                               ELSE is_qualitative
+                             END
+          WHERE name = ANY(:names)
+        `,
+        {
+          replacements: {
+            names: t.names,
+            unit: t.unit,
+            category: t.category,
+            specimen_type: t.specimen_type,
+            reference_text: t.reference_text,
+            normal_min: t.normal_min,
+            normal_max: t.normal_max,
+            is_qualitative: t.is_qualitative,
+          },
+        }
+      );
+    }
+    console.log("✅ test_types backfill applied (HbA1C / Triglycerides / Cholesterol / Colour / Transparency)");
+
     await sequelize.sync();
     console.log("✅ Models synced!");
 

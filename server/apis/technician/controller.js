@@ -21,6 +21,7 @@ import {
   getResultsForCsvExport,
   getOrgById,
   createUartTestResult,
+  getPatientSessionsOnDate,
 } from "../../database/db.js";
 import { addData, buildTestResultsCsv, failureResponse, getPaginationInfo } from "../../utils.js";
 import moment from "moment-timezone";
@@ -477,29 +478,50 @@ export async function updateTestResult(req, res) {
   }
 }
 
-export async function getSessionReport(req, res) {
+/**
+ * GET /technician/patient/:patient_id/report?date=YYYY-MM-DD
+ * Aggregates every session on that date into a single PDF.
+ */
+export async function getPatientDateReport(req, res) {
   try {
     const { user_id } = req;
-    const { history_id } = req.params;
+    const { patient_id } = req.params;
+    const { date } = req.query;
 
     if (!user_id) return failureResponse(res, 401, "Unauthorized");
-    if (!history_id) return failureResponse(res, 400, "history_id required");
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return failureResponse(res, 400, "date (YYYY-MM-DD) required");
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
     if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
     if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
 
-    const session = await getTestSessionFlat(history_id);
-    if (!session) return failureResponse(res, 404, "Session not found");
-    if (session.org_id !== technician.org_id) return failureResponse(res, 403, "Access denied");
+    const bundle = await getPatientSessionsOnDate(patient_id, date);
+    if (!bundle) return failureResponse(res, 404, "Patient not found");
+    if (bundle.patient.org_id !== technician.org_id) return failureResponse(res, 403, "Access denied");
+    if (!bundle.results.length) return failureResponse(res, 404, "No tests found for this date");
+
+    const firstHist = bundle.histories[0] || {};
+    const session = {
+      org_name: firstHist.org_name || "",
+      department_name: firstHist.department_name || "",
+      test_date: `${date}T00:00:00Z`,
+      patient_id: bundle.patient.patient_id,
+      patient_name: bundle.patient.name,
+      patient_gender: bundle.patient.gender,
+      patient_dob: bundle.patient.dob,
+      results: bundle.results,
+    };
 
     const pdfBuffer = await generateSessionReportPdf(session);
     const pdf_base64 = pdfBuffer.toString("base64");
+    const [y, m, d] = date.split("-");
+    const filename = `${bundle.patient.patient_id}_${d}-${m}-${y}.pdf`;
 
-    return res.status(200).send({ status: 200, data: { pdf_base64 } });
+    return res.status(200).send({ status: 200, data: { pdf_base64, filename } });
   } catch (err) {
-    console.error("getSessionReport error:", err);
+    console.error("getPatientDateReport error:", err);
     return res.status(500).send({ status: 500, message: "Internal server error" });
   }
 }
