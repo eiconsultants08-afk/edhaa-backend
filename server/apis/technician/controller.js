@@ -615,7 +615,11 @@ export async function generateCsvReportTechnician(req, res) {
       technician.user_id,
     );
 
-    const xlsxBuffer = await buildTestResultsXlsx(histories);
+    const org = await getOrgById(technician.org_id);
+    const xlsxBuffer = await buildTestResultsXlsx(histories, {
+      orgName:    org?.org_name || "EDHAA Diagnostic",
+      orgAddress: org?.address  || "",
+    });
     const xlsx_base64 = Buffer.from(xlsxBuffer).toString("base64");
 
     return res.status(200).send({
@@ -661,6 +665,7 @@ export async function generatePdfReportTechnician(req, res) {
 
     const pdfBuffer = await generateBulkReportPdf(histories, {
       orgName:        org?.org_name || "EDHAA Diagnostic",
+      orgAddress:     org?.address  || "",
       deptName:       "",
       startDate:      rawStart,
       endDate:        rawEnd,

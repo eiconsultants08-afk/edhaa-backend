@@ -159,12 +159,18 @@ function vline(doc, x, y1, y2, lw = 0.5, color = BLACK) {
 
 // ── Header — plain text, no fills ─────────────────────────────────────────────
 
-function drawHeader(doc, orgName, deptName) {
+function drawHeader(doc, orgName, deptName, orgAddress) {
   let y = MARGIN;
 
   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(16)
      .text(orgName, MARGIN, y, { width: CW, align: "center", lineBreak: false });
   y += 22;
+
+  if (orgAddress) {
+    doc.fillColor(GRAY).font("Helvetica").fontSize(9)
+       .text(orgAddress, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+    y += 14;
+  }
 
   if (deptName) {
     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
@@ -416,7 +422,7 @@ export function generateSessionReportPdf(session) {
 
     doc.addPage();
 
-    let y = drawHeader(doc, orgName, deptName);
+    let y = drawHeader(doc, orgName, deptName, session.org_address || "");
     y = drawPatientInfo(doc, session, y);
     y += 4;
     y = drawResultsTable(doc, results, y, session.patient_gender, true);
@@ -435,8 +441,9 @@ export function generateSessionReportPdf(session) {
  */
 export function generateBulkReportPdf(histories, meta = {}) {
   return new Promise((resolve, reject) => {
-    const orgName   = meta.orgName  || "EDHAA Diagnostic";
-    const deptName  = meta.deptName || "";
+    const orgName    = meta.orgName    || "EDHAA Diagnostic";
+    const orgAddress = meta.orgAddress || "";
+    const deptName   = meta.deptName   || "";
     const label     = meta.startDate && meta.endDate
       ? `${meta.startDate}  to  ${meta.endDate}`
       : "All dates";
@@ -513,6 +520,12 @@ export function generateBulkReportPdf(histories, meta = {}) {
       doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(14)
          .text(orgName, MARGIN, y, { width: CW, align: "center", lineBreak: false });
       y += 20;
+
+      if (orgAddress) {
+        doc.fillColor(GRAY).font("Helvetica").fontSize(9)
+           .text(orgAddress, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+        y += 14;
+      }
 
       if (deptName) {
         doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)

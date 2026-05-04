@@ -852,7 +852,11 @@ export async function generateCsvReportAdmin(req, res) {
       : moment.tz(IST).endOf("day").toISOString();
 
     const histories = await getResultsForCsvExport(admin.org_id, startDate, endDate);
-    const xlsxBuffer = await buildTestResultsXlsx(histories);
+    const org = await getOrgById(admin.org_id);
+    const xlsxBuffer = await buildTestResultsXlsx(histories, {
+      orgName:    org?.org_name || "EDHAA Diagnostic",
+      orgAddress: org?.address  || "",
+    });
     const xlsx_base64 = Buffer.from(xlsxBuffer).toString("base64");
 
     return res.status(200).send({
@@ -885,10 +889,11 @@ export async function generatePdfReportAdmin(req, res) {
     const org = await getOrgById(admin.org_id);
 
     const pdfBuffer = await generateBulkReportPdf(histories, {
-      orgName:        org?.org_name || "EDHAA Diagnostic",
-      deptName:       "",
-      startDate:      rawStart || "all",
-      endDate:        rawEnd   || "today",
+      orgName:    org?.org_name || "EDHAA Diagnostic",
+      orgAddress: org?.address  || "",
+      deptName:   "",
+      startDate:  rawStart || "all",
+      endDate:    rawEnd   || "today",
     });
 
     const pdf_base64 = pdfBuffer.toString("base64");

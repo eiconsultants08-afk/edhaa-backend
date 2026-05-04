@@ -509,6 +509,7 @@ export async function getTestSessionFlat(history_id) {
         [sequelize.col("enteredBy.username"), "entered_by_username"],
         [sequelize.col("department.department_name"), "department_name"],
         [sequelize.col("org.org_name"), "org_name"],
+        [sequelize.col("org.address"), "org_address"],
       ],
     },
   });
@@ -894,7 +895,7 @@ export async function getOrgById(org_id) {
   return Organization.findOne({
     where: { org_id },
     raw: true,
-    attributes: ["org_id", "org_name"],
+    attributes: ["org_id", "org_name", "address"],
   });
 }
 
