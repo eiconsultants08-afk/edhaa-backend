@@ -20,6 +20,11 @@ const TestTypes = sequelize.define(
       allowNull: false,
     },
 
+    full_name: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+
     unit: {
       type: DataTypes.TEXT,
       allowNull: false,

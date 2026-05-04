@@ -338,7 +338,7 @@ export async function getPatientTestHistory(limit, offset, conditions) {
             model: TestTypes,
             as: "testType",
             attributes: [
-              "test_type_id", "name", "unit",
+              "test_type_id", "name", "full_name", "unit",
               "normal_min", "normal_max",
               "male_min", "male_max",
               "female_min", "female_max",
@@ -392,6 +392,7 @@ export async function getPatientTestResults(limit, offset, conditions) {
     attributes: {
       include: [
         [sequelize.col("testType.name"), "test_type_name"],
+        [sequelize.col("testType.full_name"), "test_full_name"],
         [sequelize.col("testType.unit"), "test_type_unit"],
         [sequelize.col("testType.normal_min"), "normal_min"],
         [sequelize.col("testType.normal_max"), "normal_max"],
@@ -431,6 +432,7 @@ export async function getTestResultByIdFlat(result_id) {
     attributes: {
       include: [
         [sequelize.col("testType.name"), "test_type_name"],
+        [sequelize.col("testType.full_name"), "test_full_name"],
         [sequelize.col("testType.unit"), "test_type_unit"],
         [sequelize.col("testType.normal_min"), "normal_min"],
         [sequelize.col("testType.normal_max"), "normal_max"],
@@ -528,6 +530,7 @@ export async function getTestSessionFlat(history_id) {
     attributes: {
       include: [
         [sequelize.col("testType.name"), "test_type_name"],
+        [sequelize.col("testType.full_name"), "test_full_name"],
         [sequelize.col("testType.unit"), "test_type_unit"],
         [sequelize.col("testType.normal_min"), "normal_min"],
         [sequelize.col("testType.normal_max"), "normal_max"],
@@ -542,6 +545,7 @@ export async function getTestSessionFlat(history_id) {
         [sequelize.col("testType.critical_high"), "critical_high"],
         [sequelize.col("testType.is_qualitative"), "is_qualitative"],
         [sequelize.col("testType.specimen_type"), "specimen_type"],
+        [sequelize.col("testType.method"), "method"],
       ],
     },
   });
@@ -871,12 +875,12 @@ export async function getResultsForCsvExport(org_id, startDate, endDate, entered
             model: TestTypes,
             as: "testType",
             attributes: [
-              "name", "unit", "category",
+              "name", "full_name", "unit", "category",
               "reference_text", "critical_low", "critical_high",
               "normal_min", "normal_max",
               "male_min", "male_max",
               "female_min", "female_max",
-              "is_qualitative", "specimen_type",
+              "is_qualitative", "specimen_type", "method",
             ],
             required: false,
           },

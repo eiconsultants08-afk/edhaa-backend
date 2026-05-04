@@ -12,8 +12,8 @@ const BLACK = "#000000";
 const GRAY  = "#666666";
 
 // Result status colours — the ONLY colours used; only in session/single-test reports
-const COLOR_NORMAL = "#11865B";  // green  — normal / negative
-const COLOR_HIGH   = "#B42318";  // red    — high / positive
+const COLOR_NORMAL = "#11865B";  // green  — normal / positive
+const COLOR_HIGH   = "#B42318";  // red    — high / negative
 const COLOR_LOW    = "#A05A00";  // orange — low
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -62,9 +62,9 @@ function statusFor(r, gender) {
 }
 
 function statusColor(status) {
-  if (status === "HIGH"   || status === "POSITIVE") return COLOR_HIGH;
+  if (status === "HIGH"   || status === "NEGATIVE") return COLOR_HIGH;
   if (status === "LOW")                              return COLOR_LOW;
-  if (status === "NORMAL" || status === "NEGATIVE") return COLOR_NORMAL;
+  if (status === "NORMAL" || status === "POSITIVE") return COLOR_NORMAL;
   return BLACK;
 }
 
@@ -100,10 +100,21 @@ function methodCell(r) {
 
 function bioReference(r, gender) {
   if (r.reference_text) {
-    const firstLine = r.reference_text.split("\n")[0].trim();
+    const lines = r.reference_text.split("\n").map(l => l.trim()).filter(Boolean);
+    const g = (gender || "").toUpperCase();
+    // Try to find a gender-specific line first
+    if (g && lines.length > 1) {
+      const genderLine = lines.find(l => l.toUpperCase().startsWith(g));
+      if (genderLine) {
+        const cleaned = genderLine.replace(/^(Male|Female)\s*:\s*/i, "").trim();
+        if (cleaned) return sanitize(cleaned);
+      }
+    }
+    // Fallback: first line, strip any gender prefix
+    let firstLine = lines[0] || "";
+    firstLine = firstLine.replace(/^(Male|Female)\s*:\s*/i, "").trim();
     if (firstLine) return sanitize(firstLine);
   }
-  const unit = sanitize(r.test_type_unit || r.unit || "");
   const g = (gender || "").toUpperCase();
   const min =
     g === "MALE"   && r.male_min   != null ? Number(r.male_min)   :
@@ -113,9 +124,9 @@ function bioReference(r, gender) {
     g === "MALE"   && r.male_max   != null ? Number(r.male_max)   :
     g === "FEMALE" && r.female_max != null ? Number(r.female_max) :
     r.normal_max   != null ? Number(r.normal_max) : null;
-  if (min != null && max != null) return `${min} - ${max}${unit ? " " + unit : ""}`;
-  if (min == null && max != null) return `< ${max}${unit ? " " + unit : ""}`;
-  if (min != null && max == null) return `> ${min}${unit ? " " + unit : ""}`;
+  if (min != null && max != null) return `${min} - ${max}`;
+  if (min == null && max != null) return `< ${max}`;
+  if (min != null && max == null) return `> ${min}`;
   return "-";
 }
 
@@ -187,8 +198,12 @@ function drawPatientInfo(doc, session, startY) {
       { label: "Received & Reported Date", value: `${fmtDate(session.test_date)}  ${fmtTime()}` },
     ],
     [
-      { label: "Ref. By",                  value: "-"                                             },
+      { label: "Start Date",               value: fmtDate(session.test_date)                     },
       { label: "Specimen",                 value: "-"                                             },
+    ],
+    [
+      { label: "Ref. By",                  value: "-"                                             },
+      { label: "",                          value: ""                                              },
     ],
   ];
 
@@ -249,8 +264,9 @@ function drawPatientInfo(doc, session, startY) {
 function drawResultsTable(doc, results, startY, patientGender, colorResults = true) {
   let y = sectionHead(doc, "LABORATORY TEST RESULTS", startY) + 2;
 
-  const COLS = [155, 95, 160, 105]; // Test | Result | Bio Reference | Method — sum = 515 = CW
-  const HDRS = ["Test", "Result Value", "Biological Reference", "Method"];
+  // Column sequence: Test Name | Unit | Value | Range | Method — sum ≈ 515 = CW
+  const COLS = [140, 60, 85, 120, 110];
+  const HDRS = ["Test Name", "Unit", "Value", "Range", "Method"];
   const RH   = 28; // taller rows so wrapped method text stays within the cell
 
   // ── Header row ──────────────────────────────────────────────────────────────
@@ -272,8 +288,6 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
     const rawVal     = r.value_text != null
       ? r.value_text
       : (r.value_num != null ? String(r.value_num) : "-");
-    // Qualitative results (Positive/Negative) never get a unit appended
-    const resDisplay = (r.value_text != null || !unit) ? rawVal : `${rawVal} ${unit}`;
     const resColor   = colorResults && status ? statusColor(status) : BLACK;
 
     // Row border (draw before text so borders don't overdraw text)
@@ -286,32 +300,41 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
       if (i < COLS.length - 1) vline(doc, divX, y, y + RH, 0.3, BLACK);
     });
 
-    const isBold = colorResults && status && status !== "NORMAL" && status !== "NEGATIVE";
+    const isBold = colorResults && status && status !== "NORMAL" && status !== "POSITIVE";
 
     let cx = MARGIN;
 
-    // Col 0 — Test name (left-aligned, single line)
+    // Col 0 — Test Name: show full_name with short name in parens, or just short name
+    const testLabel = r.test_full_name
+      ? `${r.test_full_name} (${r.test_type_name})`
+      : (r.test_type_name || "-");
     doc.fillColor(BLACK).font("Helvetica").fontSize(9)
-       .text(r.test_type_name || "-", cx + 5, y + 9,
+       .text(testLabel, cx + 5, y + 9,
          { width: COLS[0] - 10, align: "left", lineBreak: false });
     cx += COLS[0];
 
-    // Col 1 — Result value (centred, bold+colour when abnormal)
-    doc.fillColor(resColor).font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
-       .text(resDisplay, cx + 5, y + 9,
+    // Col 1 — Unit (centred)
+    doc.fillColor(GRAY).font("Helvetica").fontSize(9)
+       .text(unit || "-", cx + 5, y + 9,
          { width: COLS[1] - 10, align: "center", lineBreak: false });
     cx += COLS[1];
 
-    // Col 2 — Biological reference (centred, single line)
-    doc.fillColor(GRAY).font("Helvetica").fontSize(9)
-       .text(bioReference(r, patientGender), cx + 5, y + 9,
+    // Col 2 — Value (centred, bold+colour when abnormal)
+    doc.fillColor(resColor).font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
+       .text(rawVal, cx + 5, y + 9,
          { width: COLS[2] - 10, align: "center", lineBreak: false });
     cx += COLS[2];
 
-    // Col 3 — Method (centred, allow line wrapping — top-aligned within cell)
+    // Col 3 — Range (centred, single line)
+    doc.fillColor(GRAY).font("Helvetica").fontSize(9)
+       .text(bioReference(r, patientGender), cx + 5, y + 9,
+         { width: COLS[3] - 10, align: "center", lineBreak: false });
+    cx += COLS[3];
+
+    // Col 4 — Method (centred, allow line wrapping — top-aligned within cell)
     doc.fillColor(GRAY).font("Helvetica").fontSize(8.5)
        .text(methodCell(r), cx + 5, y + 6,
-         { width: COLS[3] - 10, align: "center" });
+         { width: COLS[4] - 10, align: "center" });
 
     y += RH;
   });
@@ -458,7 +481,9 @@ export function generateBulkReportPdf(histories, meta = {}) {
 
         rows.push({
           dateStr, patientLabel, genderStr,
-          testName: tt.name || "-",
+          testName: tt.full_name
+            ? `${tt.full_name} (${tt.name})`
+            : (tt.name || "-"),
           resDisplay, status: status || "-",
           methodStr,
         });
@@ -597,6 +622,7 @@ export function generateTestReportPdf(result) {
     entered_by_name: result.entered_by_name,
     results: [{
       test_type_name:  result.test_type_name,
+      test_full_name:  result.test_full_name,
       test_type_unit:  result.test_type_unit,
       value_num:       result.value_num,
       value_text:      result.value_text,

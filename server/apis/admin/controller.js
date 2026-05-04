@@ -1,5 +1,6 @@
 // controller.js
-import { addData, failureResponse, getPaginationInfo, hashPassword, buildTestResultsCsv } from "../../utils.js";
+import { addData, failureResponse, getPaginationInfo, hashPassword } from "../../utils.js";
+import { buildTestResultsXlsx } from "../../pdf/excelReportGenerator.js";
 import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions, bulkCreatePatientTestResults, bulkUpdateTestResultsBySession, createTestHistory, getTestTypesByIds, getTestTypesByOrg, updateTestHistory as updateTestHistoryDb, getResultsForCsvExport, getOrgById } from "../../database/db.js";
 import moment from 'moment-timezone';
 import { constants } from "../../constants.js";
@@ -851,11 +852,12 @@ export async function generateCsvReportAdmin(req, res) {
       : moment.tz(IST).endOf("day").toISOString();
 
     const histories = await getResultsForCsvExport(admin.org_id, startDate, endDate);
-    const csv_base64 = buildTestResultsCsv(histories);
+    const xlsxBuffer = await buildTestResultsXlsx(histories);
+    const xlsx_base64 = Buffer.from(xlsxBuffer).toString("base64");
 
     return res.status(200).send({
       status: 200,
-      data: { csv_base64, filename: `report_${rawStart || "all"}_to_${rawEnd || "today"}.csv` },
+      data: { xlsx_base64, filename: `report_${rawStart || "all"}_to_${rawEnd || "today"}.xlsx` },
       message: `${histories.length} sessions exported`,
     });
   } catch (err) {

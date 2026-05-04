@@ -22,7 +22,8 @@ import {
   getOrgById,
   createUartTestResult,
 } from "../../database/db.js";
-import { addData, buildTestResultsCsv, failureResponse, getPaginationInfo } from "../../utils.js";
+import { addData, failureResponse, getPaginationInfo } from "../../utils.js";
+import { buildTestResultsXlsx } from "../../pdf/excelReportGenerator.js";
 import moment from "moment-timezone";
 import { generateTestReportPdf, generateSessionReportPdf, generateBulkReportPdf } from "../../pdf/reportGenerator.js";
 
@@ -614,11 +615,12 @@ export async function generateCsvReportTechnician(req, res) {
       technician.user_id,
     );
 
-    const csv_base64 = buildTestResultsCsv(histories);
+    const xlsxBuffer = await buildTestResultsXlsx(histories);
+    const xlsx_base64 = Buffer.from(xlsxBuffer).toString("base64");
 
     return res.status(200).send({
       status: 200,
-      data: { csv_base64, filename: `report_${rawStart}_to_${rawEnd}.csv` },
+      data: { xlsx_base64, filename: `report_${rawStart}_to_${rawEnd}.xlsx` },
       message: `${histories.length} sessions exported`,
     });
   } catch (err) {

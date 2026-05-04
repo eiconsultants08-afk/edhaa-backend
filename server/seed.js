@@ -137,140 +137,140 @@ const EDHHA_PATIENTS = [
 
 const BLOOD_TESTS = [
   {
-    name: "Hb", unit: "g/dL", category: "Haemogram biochemistry",
+    name: "Hb", full_name: "Haemoglobin", unit: "g/dL", category: "Haemogram biochemistry",
     method_options: ["Alkaline Hematin D Method"],
     reference_text: "Male: 14–18 g/dL\nFemale: 12–16 g/dL",
     normal_min: 12, normal_max: 18, male_min: 14, male_max: 18, female_min: 12, female_max: 16,
     critical_low: 7, critical_high: 20, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "RBS", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "RBS", full_name: "Random Blood Glucose", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["GOD-POD Method"],
     reference_text: "Normal: <200 mg/dL\nDiabetes mellitus: >200 mg/dL",
     normal_min: null, normal_max: 200, male_min: null, male_max: 200, female_min: null, female_max: 200,
     critical_low: 60, critical_high: 300, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Creatinine", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Creatinine", full_name: "Serum Creatinine", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Modified Jaffe Method"],
     reference_text: "Male: 0.66–1.25 mg/dL\nFemale: 0.52–1.04 mg/dL",
     normal_min: 0.52, normal_max: 1.25, male_min: 0.66, male_max: 1.25, female_min: 0.52, female_max: 1.04,
     critical_low: null, critical_high: 5, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Urea", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Urea", full_name: "Serum Urea", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Berthlot Endpoint Method"],
     reference_text: "Male: 19–43 mg/dL\nFemale: 20–36 mg/dL",
     normal_min: 19, normal_max: 43, male_min: 19, male_max: 43, female_min: 20, female_max: 36,
     critical_low: null, critical_high: 100, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Uric Acid", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Uric Acid", full_name: "Serum Uric Acid", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Uricase-POD Method"],
     reference_text: "Male: 3.5–8.5 mg/dL\nFemale: 2.5–6.2 mg/dL",
     normal_min: 2.5, normal_max: 8.5, male_min: 3.5, male_max: 8.5, female_min: 2.5, female_max: 6.2,
     critical_low: null, critical_high: 13, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Total Bilirubin", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Total Bilirubin", full_name: "Total Bilirubin", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Diazo Method"],
     reference_text: "0–1.2 mg/dL",
     normal_min: 0, normal_max: 1.2, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: 15, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Direct Bilirubin", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Direct Bilirubin", full_name: "Direct Bilirubin", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Diazo Method"],
     reference_text: "0–0.3 mg/dL",
     normal_min: 0, normal_max: 0.3, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: 5, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Albumin", unit: "g/dL", category: "Serum Biochemistry",
+    name: "S. Albumin", full_name: "Serum Albumin", unit: "g/dL", category: "Serum Biochemistry",
     method_options: ["Bromocresol Green Method"],
     reference_text: "3.5–5.2 g/dL",
     normal_min: 3.5, normal_max: 5.2, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 2, critical_high: null, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. TP", unit: "g/dL", category: "Serum Biochemistry",
+    name: "S. TP", full_name: "Serum Total Protein", unit: "g/dL", category: "Serum Biochemistry",
     method_options: ["Biuret Method"],
     reference_text: "6.0–8.3 g/dL",
     normal_min: 6.0, normal_max: 8.3, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 4, critical_high: 10, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Calcium", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Calcium", full_name: "Serum Calcium", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Arsenazo III Method"],
     reference_text: "8.4–10.2 mg/dL",
     normal_min: 8.4, normal_max: 10.2, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 6.5, critical_high: 13, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. TC", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. TC", full_name: "Serum Total Cholesterol", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["CHOD-POD Method"],
     reference_text: "Desirable: <200 mg/dL\nBorderline High: 200–239 mg/dL\nHigh: ≥240 mg/dL",
     normal_min: null, normal_max: 200, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: 300, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Triglycerides", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Triglycerides", full_name: "Serum Triglycerides", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["GPO-POD Method"],
     reference_text: "Normal: <150 mg/dL\nBorderline High: 150–199 mg/dL\nHigh: 200–499 mg/dL\nVery High: ≥500 mg/dL",
     normal_min: null, normal_max: 150, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: 500, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. HDL-C", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. HDL-C", full_name: "Serum HDL Cholesterol", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Polymer-Detergent Method"],
     reference_text: ">40 mg/dL",
     normal_min: 40, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 20, critical_high: null, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "HbA1C", unit: "%", category: "Serum Biochemistry",
+    name: "HbA1C", full_name: "Glycated Haemoglobin", unit: "%", category: "Serum Biochemistry",
     method_options: ["Immunoturbidimetric Method"],
     reference_text: "Non-diabetic: ≤5.6%\nPre-diabetic: 5.7–6.4%\nDiabetic: ≥6.5%",
     normal_min: null, normal_max: 5.6, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Sodium", unit: "mmol/L", category: "Serum Biochemistry",
+    name: "S. Sodium", full_name: "Serum Sodium", unit: "mmol/L", category: "Serum Biochemistry",
     method_options: ["Colorimetric Method"],
     reference_text: "136–145 mmol/L",
     normal_min: 136, normal_max: 145, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 120, critical_high: 160, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Potassium", unit: "mmol/L", category: "Serum Biochemistry",
+    name: "S. Potassium", full_name: "Serum Potassium", unit: "mmol/L", category: "Serum Biochemistry",
     method_options: ["Colorimetric Method"],
     reference_text: "3.5–5.1 mmol/L",
     normal_min: 3.5, normal_max: 5.1, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 2.5, critical_high: 6.5, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Chloride", unit: "mmol/L", category: "Serum Biochemistry",
+    name: "S. Chloride", full_name: "Serum Chloride", unit: "mmol/L", category: "Serum Biochemistry",
     method_options: ["Thiocyanate Method"],
     reference_text: "98–109 mmol/L",
     normal_min: 98, normal_max: 109, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 80, critical_high: 115, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Magnesium", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Magnesium", full_name: "Serum Magnesium", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Xylidyl Blue Method"],
     reference_text: "1.6–3.0 mg/dL",
     normal_min: 1.6, normal_max: 3.0, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 1.0, critical_high: 4.0, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Phosphorus", unit: "mg/dL", category: "Serum Biochemistry",
+    name: "S. Phosphorus", full_name: "Serum Phosphorus", unit: "mg/dL", category: "Serum Biochemistry",
     method_options: ["Ammonium Molybdate Method"],
     reference_text: "2.5–4.5 mg/dL",
     normal_min: 2.5, normal_max: 4.5, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: 1.0, critical_high: 7.0, is_qualitative: false, specimen_type: "Blood",
   },
   {
-    name: "S. Zinc", unit: "µg/dL", category: "Serum Biochemistry",
+    name: "S. Zinc", full_name: "Serum Zinc", unit: "µg/dL", category: "Serum Biochemistry",
     method_options: ["Bromo PAPS Method"],
     reference_text: "60–120 µg/dL",
     normal_min: 60, normal_max: 120, male_min: null, male_max: null, female_min: null, female_max: null,
@@ -282,119 +282,119 @@ const BLOOD_TESTS = [
 
 const URINE_TESTS = [
   {
-    name: "Colour", unit: "", category: "Urine test",
+    name: "Colour", full_name: null, unit: "", category: "Urine test",
     method_options: ["Visual Method"],
     reference_text: "Pale Yellow",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "Transparency", unit: "", category: "Urine test",
+    name: "Transparency", full_name: null, unit: "", category: "Urine test",
     method_options: ["Visual Method"],
     reference_text: "Clear",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "pH", unit: "", category: "Urine test",
+    name: "pH", full_name: "pH (Acidity/Alkalinity)", unit: "", category: "Urine test",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "5.0–8.0",
     normal_min: 5.0, normal_max: 8.0, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: false, specimen_type: "Urine",
   },
   {
-    name: "SG", unit: "", category: "Urine test",
+    name: "SG", full_name: "Specific Gravity", unit: "", category: "Urine test",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "1.003–1.030",
     normal_min: 1.003, normal_max: 1.030, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: false, specimen_type: "Urine",
   },
   {
-    name: "LEU", unit: "cell/μL", category: "MSU (Urine Biochemistry)",
+    name: "LEU", full_name: "Leukocyte Esterase (WBC)", unit: "cell/μL", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "Negative to Trace",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "URO", unit: "mg/dL", category: "MSU (Urine Biochemistry)",
+    name: "URO", full_name: "Urobilinogen", unit: "mg/dL", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "0.2–1.0 mg/dL",
     normal_min: 0.2, normal_max: 1.0, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: false, specimen_type: "Urine",
   },
   {
-    name: "ALB", unit: "mg/dL", category: "MSU (Urine Biochemistry)",
+    name: "ALB", full_name: "Microalbumin", unit: "mg/dL", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "<2 mg/dL",
     normal_min: null, normal_max: 2, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: false, specimen_type: "Urine",
   },
   {
-    name: "PRO", unit: "g/L", category: "MSU (Urine Biochemistry)",
+    name: "PRO", full_name: "Protein", unit: "g/L", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "Negative",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: 1, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "BIL", unit: "µmol/L", category: "MSU (Urine Biochemistry)",
+    name: "BIL", full_name: "Bilirubin", unit: "µmol/L", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "Negative",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "GLU", unit: "mmol/L", category: "MSU (Urine Biochemistry)",
+    name: "GLU", full_name: "Glucose (Sugar)", unit: "mmol/L", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "Negative",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "ASC", unit: "mmol/L", category: "MSU (Urine Biochemistry)",
+    name: "ASC", full_name: "Ascorbic Acid", unit: "mmol/L", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "Negative to Low",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "KET", unit: "mmol/L", category: "MSU (Urine Biochemistry)",
+    name: "KET", full_name: "Ketones", unit: "mmol/L", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "Negative",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "NIT", unit: "mmol/L", category: "MSU (Urine Biochemistry)",
+    name: "NIT", full_name: "Nitrites", unit: "mmol/L", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "Negative",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "CRE", unit: "mg/dL", category: "MSU (Urine Biochemistry)",
+    name: "CRE", full_name: "Creatinine", unit: "mg/dL", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "1.13–10.18 mg/dL",
     normal_min: 1.13, normal_max: 10.18, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: false, specimen_type: "Urine",
   },
   {
-    name: "BLO", unit: "cell/μL", category: "MSU (Urine Biochemistry)",
+    name: "BLO", full_name: "Blood", unit: "cell/μL", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "Negative",
     normal_min: null, normal_max: null, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: true, specimen_type: "Urine",
   },
   {
-    name: "CA", unit: "mg/dL", category: "MSU (Urine Biochemistry)",
+    name: "CA", full_name: "Calcium", unit: "mg/dL", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "10–30 mg/dL",
     normal_min: 10, normal_max: 30, male_min: null, male_max: null, female_min: null, female_max: null,
     critical_low: null, critical_high: null, is_qualitative: false, specimen_type: "Urine",
   },
   {
-    name: "ACR", unit: "mg/g", category: "MSU (Urine Biochemistry)",
+    name: "ACR", full_name: "Albumin Creatinine Ratio", unit: "mg/g", category: "MSU (Urine Biochemistry)",
     method_options: ["Urine Dip Strip Method"],
     reference_text: "<30 mg/g",
     normal_min: null, normal_max: 30, male_min: null, male_max: null, female_min: null, female_max: null,
@@ -432,6 +432,7 @@ function buildTestTypeRows(types, org_id) {
     test_type_id:   randomUUID(),
     org_id,
     name:           t.name,
+    full_name:      t.full_name ?? null,
     unit:           t.unit,
     method:         t.method_options?.[0] ?? null,
     normal_min:     t.normal_min,
@@ -499,6 +500,7 @@ async function seed() {
   // plan_id FK on organizations (nullable so existing rows are unaffected until updated)
   await sequelize.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS plan_id UUID;`);
 
+  await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS org_id UUID;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS category TEXT;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS method_options JSONB;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS reference_text TEXT;`);
@@ -507,6 +509,7 @@ async function seed() {
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS is_qualitative BOOLEAN NOT NULL DEFAULT false;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS specimen_type TEXT;`);
   await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;`);
+  await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS full_name TEXT;`);
 
   await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS method_used TEXT;`);
 
@@ -514,6 +517,29 @@ async function seed() {
   await sequelize.query(`ALTER TABLE test_histories ADD COLUMN IF NOT EXISTS status enum_test_history_status NOT NULL DEFAULT 'PENDING';`);
 
   await sequelize.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`);
+
+  // Drop legacy single-column unique constraint on test_types.name — test types
+  // are now org-scoped, so the same name may exist in multiple organizations.
+  await sequelize.query(`ALTER TABLE test_types DROP CONSTRAINT IF EXISTS test_types_name_key;`);
+  await sequelize.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS test_types_name_org_id_key
+    ON test_types (name, org_id);
+  `);
+
+  // Drop legacy unique constraint on organizations.org_code — it conflicts with
+  // sequence-based assignment on re-runs.
+  await sequelize.query(`ALTER TABLE organizations DROP CONSTRAINT IF EXISTS organizations_org_code_key;`);
+
+  // Clean up orphan records that have no org_id (created before org scoping).
+  // Must delete in FK-dependency order.
+  await sequelize.query(`
+    DELETE FROM patient_test_results
+    WHERE test_type_id IN (SELECT test_type_id FROM test_types WHERE org_id IS NULL);
+  `);
+  await sequelize.query(`DELETE FROM patient_test_results WHERE org_id IS NULL;`);
+  await sequelize.query(`DELETE FROM test_histories WHERE org_id IS NULL;`);
+  await sequelize.query(`DELETE FROM test_types WHERE org_id IS NULL;`);
+  await sequelize.query(`DELETE FROM patients WHERE org_id IS NULL;`);
 
   console.log("✅ Schema patches applied\n");
 
@@ -1085,5 +1111,8 @@ async function seed() {
 
 seed().catch(err => {
   console.error("❌ Seed failed:", err.message || err);
+  if (err.original) console.error("   DB detail:", err.original.detail || err.original.message);
+  if (err.sql) console.error("   SQL:", err.sql.slice(0, 200));
+  console.error(err.stack);
   process.exit(1);
 });

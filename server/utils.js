@@ -402,7 +402,20 @@ function csvStatusFor(r, gender) {
 
 function csvBioRef(tt, gender) {
   if (!tt) return "-";
-  if (tt.reference_text) return tt.reference_text.split("\n")[0].trim();
+  if (tt.reference_text) {
+    const lines = tt.reference_text.split("\n").map(l => l.trim()).filter(Boolean);
+    const g = (gender || "").toUpperCase();
+    if (g && lines.length > 1) {
+      const genderLine = lines.find(l => l.toUpperCase().startsWith(g));
+      if (genderLine) {
+        const cleaned = genderLine.replace(/^(Male|Female)\s*:\s*/i, "").trim();
+        if (cleaned) return cleaned;
+      }
+    }
+    let firstLine = lines[0] || "";
+    firstLine = firstLine.replace(/^(Male|Female)\s*:\s*/i, "").trim();
+    if (firstLine) return firstLine;
+  }
   const g = (gender || "").toUpperCase();
   const unit = tt.unit || "";
   const min =
