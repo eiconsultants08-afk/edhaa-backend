@@ -10,11 +10,6 @@ const TestTypes = sequelize.define(
       primaryKey: true,
     },
 
-    org_id: {
-      type: DataTypes.UUID,
-      allowNull: false,
-    },
-
     name: {
       type: DataTypes.TEXT,
       allowNull: false,
@@ -65,29 +60,18 @@ const TestTypes = sequelize.define(
       allowNull: true,
     },
 
-    threshold_operator: {
-      type: DataTypes.TEXT, // '<', '>', '<=', '>='
-      allowNull: true,
-    },
-
-    threshold_value: {
-      type: DataTypes.DECIMAL,
-      allowNull: true,
-    },
-
-    // BIO-CHEQ extended fields
     category: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
 
     method_options: {
-      type: DataTypes.JSONB,  // array of method strings
+      type: DataTypes.JSONB,
       allowNull: true,
     },
 
     reference_text: {
-      type: DataTypes.TEXT,   // full multi-line biological reference range
+      type: DataTypes.TEXT,
       allowNull: true,
     },
 
@@ -107,13 +91,8 @@ const TestTypes = sequelize.define(
     },
 
     specimen_type: {
-      type: DataTypes.TEXT,   // "Blood" | "Urine" | "Saliva" | "Calculated"
+      type: DataTypes.TEXT,   // "Blood" | "Urine" | "Saliva"
       allowNull: true,
-    },
-
-    is_active: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true,
     },
   },
   {

@@ -342,7 +342,6 @@ export async function getPatientTestHistory(limit, offset, conditions) {
               "normal_min", "normal_max",
               "male_min", "male_max",
               "female_min", "female_max",
-              "threshold_operator", "threshold_value",
               "category", "method_options", "reference_text",
               "critical_low", "critical_high", "is_qualitative",
               "specimen_type",
@@ -369,11 +368,27 @@ export async function bulkCreatePatientTestResults(dataArray) {
 }
 
 export async function getTestTypesByOrg(org_id) {
-  return TestTypes.findAll({
-    where: { org_id, is_active: true },
-    raw: true,
-    order: [["name", "ASC"]],
-  });
+  return sequelize.query(`
+    SELECT tt.*
+    FROM test_types tt
+    JOIN plan_test_types ptt ON ptt.test_type_id = tt.test_type_id
+    JOIN organizations o ON o.plan_id = ptt.plan_id
+    WHERE o.org_id = :org_id
+    ORDER BY tt.name ASC
+  `, { replacements: { org_id }, type: sequelize.QueryTypes.SELECT });
+}
+
+/** Returns the set of test_type_ids from `ids` that are valid for the org's plan. */
+export async function getOrgPlanTestTypeIds(ids, org_id) {
+  if (!ids || ids.length === 0) return new Set();
+  const rows = await sequelize.query(`
+    SELECT tt.test_type_id
+    FROM test_types tt
+    JOIN plan_test_types ptt ON ptt.test_type_id = tt.test_type_id
+    JOIN organizations o ON o.plan_id = ptt.plan_id
+    WHERE o.org_id = :org_id AND tt.test_type_id IN (:ids)
+  `, { replacements: { org_id, ids }, type: sequelize.QueryTypes.SELECT });
+  return new Set(rows.map(r => r.test_type_id));
 }
 
 export async function getPatientTestResults(limit, offset, conditions) {
@@ -400,8 +415,6 @@ export async function getPatientTestResults(limit, offset, conditions) {
         [sequelize.col("testType.male_max"), "male_max"],
         [sequelize.col("testType.female_min"), "female_min"],
         [sequelize.col("testType.female_max"), "female_max"],
-        [sequelize.col("testType.threshold_operator"), "threshold_operator"],
-        [sequelize.col("testType.threshold_value"), "threshold_value"],
         [sequelize.col("testType.category"), "category"],
         [sequelize.col("testType.method_options"), "method_options"],
         [sequelize.col("testType.reference_text"), "reference_text"],
@@ -440,8 +453,6 @@ export async function getTestResultByIdFlat(result_id) {
         [sequelize.col("testType.male_max"), "male_max"],
         [sequelize.col("testType.female_min"), "female_min"],
         [sequelize.col("testType.female_max"), "female_max"],
-        [sequelize.col("testType.threshold_operator"), "threshold_operator"],
-        [sequelize.col("testType.threshold_value"), "threshold_value"],
         [sequelize.col("testType.category"), "category"],
         [sequelize.col("testType.method_options"), "method_options"],
         [sequelize.col("testType.reference_text"), "reference_text"],
@@ -901,11 +912,14 @@ export async function getOrgById(org_id) {
 
 export async function createUartTestResult({ patient_id, test_name, value_num, method_used, entered_by_user_id, department_id, org_id }) {
   return sequelize.transaction(async (t) => {
-    const testType = await TestTypes.findOne({
-      where: { name: test_name, org_id, is_active: true },
-      raw: true,
-      transaction: t,
-    });
+    const [testType] = await sequelize.query(`
+      SELECT tt.*
+      FROM test_types tt
+      JOIN plan_test_types ptt ON ptt.test_type_id = tt.test_type_id
+      JOIN organizations o ON o.plan_id = ptt.plan_id
+      WHERE o.org_id = :org_id AND tt.name = :name
+      LIMIT 1
+    `, { replacements: { org_id, name: test_name }, type: sequelize.QueryTypes.SELECT, transaction: t });
     if (!testType) throw new Error(`Test type "${test_name}" not found in org`);
 
     const history = await TestHistory.create({

@@ -94,7 +94,6 @@ function shortMethod(raw) {
 
 function methodCell(r) {
   const method = shortMethod(r.method_used || r.method || "");
-  if ((r.specimen_type || "") === "Calculated") return "Calculated";
   return method || "-";
 }
 
@@ -159,25 +158,19 @@ function vline(doc, x, y1, y2, lw = 0.5, color = BLACK) {
 
 // ── Header — plain text, no fills ─────────────────────────────────────────────
 
-function drawHeader(doc, orgName, deptName, orgAddress) {
+const COMPANY_NAME    = "EDHAA INNOVATIONS PRIVATE LIMITED";
+const COMPANY_ADDRESS = "6008, 6TH FLOOR, RBTIC BUILDING, IIT BOMBAY, POWAI, MUMBAI, 400076";
+
+function drawHeader(doc) {
   let y = MARGIN;
 
   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(16)
-     .text(orgName, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+     .text(COMPANY_NAME, MARGIN, y, { width: CW, align: "center", lineBreak: false });
   y += 22;
 
-  if (orgAddress) {
-    doc.fillColor(GRAY).font("Helvetica").fontSize(9)
-       .text(orgAddress, MARGIN, y, { width: CW, align: "center", lineBreak: false });
-    y += 14;
-  }
-
-  if (deptName) {
-    doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-       .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y,
-         { width: CW, align: "center", lineBreak: false });
-    y += 16;
-  }
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+     .text(COMPANY_ADDRESS, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+  y += 16;
 
   hline(doc, y, 1, BLACK);
   return y + 10;
@@ -200,15 +193,15 @@ function drawPatientInfo(doc, session, startY) {
 
   const rows = [
     [
-      { label: "Patient ID",               value: code                                            },
+      { label: "Sample ID",                value: code                                            },
       { label: "Received & Reported Date", value: `${fmtDate(session.test_date)}  ${fmtTime()}` },
     ],
     [
-      { label: "Start Date",               value: fmtDate(session.test_date)                     },
-      { label: "Specimen",                 value: "-"                                             },
+      { label: "Patient ID",               value: code                                            },
+      { label: "Ref. By.",                 value: session.org_name || "-"                        },
     ],
     [
-      { label: "Ref. By",                  value: "-"                                             },
+      { label: "Start Date",               value: fmtDate(session.test_date)                     },
       { label: "",                          value: ""                                              },
     ],
   ];
@@ -355,36 +348,23 @@ function drawFooter(doc, y) {
   hline(doc, y, 1, BLACK);
   y += 8;
 
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
+     .text("Disclaimer:", MARGIN, y, { width: CW, lineBreak: false });
+  y += 13;
+
   const lines = [
-    "Suggested Clinical correlation is advised.",
-    "Test items relate only to the item tested.",
-    "No part of this report can be reproduced without permission of the administrator.",
+    "1. This report has been generated as part of a pilot study and is strictly confidential. It must not be disclosed to patients or any unauthorized parties.",
+    "2. Reproduction, distribution, or disclosure of this report, in whole or in part, is strictly prohibited without prior written permission from the administration.",
+    "3. Biological reference/Normal ranges presented herein are derived from a limited sample set tested during prior pilot study.",
   ];
 
   lines.forEach((line) => {
-    doc.fillColor(GRAY).font("Helvetica").fontSize(8)
-       .text(line, MARGIN, y, { width: CW, lineBreak: false });
-    y += 13;
-  });
-
-  // NOTE block
-  y += 6;
-  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
-     .text("NOTE:", MARGIN, y, { width: CW, lineBreak: false });
-  y += 11;
-
-  const noteLines = [
-    "1. Only pick up the contents.",
-    "2. Rest alignment and formatting based on your own. Just keep it concise.",
-    "3. Keep either Biological reference or Normal ranges based on what the app is generating as of now.",
-  ];
-  noteLines.forEach((line) => {
     doc.fillColor(GRAY).font("Helvetica").fontSize(7.5)
        .text(line, MARGIN + 4, y, { width: CW - 4 });
-    y = doc.y + 1;
+    y = doc.y + 2;
   });
 
-  y += 4;
+  y += 6;
   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
      .text("THIS IS A SYSTEM GENERATED REPORT", MARGIN, y,
        { width: CW, align: "center", lineBreak: false });
@@ -422,7 +402,7 @@ export function generateSessionReportPdf(session) {
 
     doc.addPage();
 
-    let y = drawHeader(doc, orgName, deptName, session.org_address || "");
+    let y = drawHeader(doc);
     y = drawPatientInfo(doc, session, y);
     y += 4;
     y = drawResultsTable(doc, results, y, session.patient_gender, true);

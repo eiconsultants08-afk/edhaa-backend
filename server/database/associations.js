@@ -8,43 +8,32 @@ import TestTypes from "./test_types.js";
 import TestHistory from "./test_history.js";
 import PatientTestResults from "./patient_test_results.js";
 import Plans from "./plans.js";
+import PlanTestTypes from "./plan_test_types.js";
 
 // ── Plans ──────────────────────────────────────────────────────────────────────
 Plans.hasMany(Organization, { foreignKey: "plan_id", as: "organizations" });
 Organization.belongsTo(Plans, { foreignKey: "plan_id", as: "plan" });
 
-// ── TestTypes ──────────────────────────────────────────────────────────────────
-TestTypes.belongsTo(Organization, { foreignKey: "org_id", as: "org" });
-Organization.hasMany(TestTypes, { foreignKey: "org_id", as: "testTypes" });
+// ── Plans ↔ TestTypes (global catalogue, org-independent) ─────────────────────
+Plans.belongsToMany(TestTypes, { through: PlanTestTypes, foreignKey: "plan_id", otherKey: "test_type_id", as: "testTypes" });
+TestTypes.belongsToMany(Plans, { through: PlanTestTypes, foreignKey: "test_type_id", otherKey: "plan_id", as: "plans" });
 
 // ── TestHistory ────────────────────────────────────────────────────────────────
-// A patient has many testing sessions
 Patients.hasMany(TestHistory, { foreignKey: "patient_id", as: "testHistory" });
 TestHistory.belongsTo(Patients, { foreignKey: "patient_id", as: "patient" });
 
-// Each session was entered by a technician
 TestHistory.belongsTo(Users, { foreignKey: "entered_by_user_id", as: "enteredBy" });
-
-// Each session optionally used a device
 TestHistory.belongsTo(Devices, { foreignKey: "device_id", as: "device" });
-
-// Org + department scoping
 TestHistory.belongsTo(Organization, { foreignKey: "org_id", as: "org" });
 TestHistory.belongsTo(Department, { foreignKey: "department_id", as: "department" });
 
 // ── PatientTestResults ─────────────────────────────────────────────────────────
-// Each result belongs to a session (TestHistory)
 TestHistory.hasMany(PatientTestResults, { foreignKey: "history_id", as: "results" });
 PatientTestResults.belongsTo(TestHistory, { foreignKey: "history_id", as: "history" });
 
-// Direct patient link (for queries that don't need to go through TestHistory)
 PatientTestResults.belongsTo(Patients, { foreignKey: "patient_id", as: "patient" });
-
-// Test type lookup
 PatientTestResults.belongsTo(TestTypes, { foreignKey: "test_type_id", as: "testType" });
 TestTypes.hasMany(PatientTestResults, { foreignKey: "test_type_id", as: "results" });
-
-// Org scoping
 PatientTestResults.belongsTo(Organization, { foreignKey: "org_id", as: "org" });
 
 export {
@@ -58,4 +47,5 @@ export {
   TestHistory,
   PatientTestResults,
   Plans,
+  PlanTestTypes,
 };

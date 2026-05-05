@@ -125,7 +125,7 @@ async function startPostgres() {
     await sequelize.query(`ALTER TABLE patient_test_results ADD COLUMN IF NOT EXISTS method_used TEXT;`);
     console.log("✅ patient_test_results.method_used column patched");
 
-    // specimen_type on test types (Blood / Urine / Saliva / Calculated)
+    // specimen_type on test types (Blood / Urine / Saliva)
     await sequelize.query(`ALTER TABLE test_types ADD COLUMN IF NOT EXISTS specimen_type TEXT;`);
     console.log("✅ test_types.specimen_type column patched");
 

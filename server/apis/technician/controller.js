@@ -10,6 +10,7 @@ import {
   getPatients,
   getTestTypesByIds,
   getTestTypesByOrg,
+  getOrgPlanTestTypeIds,
   getPatientTestHistory,
   getTestResultByIdFlat,
   getTestSessionFlat,
@@ -232,13 +233,9 @@ export async function registerTestSession(req, res) {
     if (patient.org_id !== technician.org_id)
       return failureResponse(res, 403, "Access denied");
 
-    const testTypes = await getTestTypesByIds(test_type_ids);
-    if (testTypes.length !== test_type_ids.length)
-      return failureResponse(res, 400, "Invalid test_type_id");
-    for (const tt of testTypes) {
-      if (tt.org_id !== technician.org_id)
-        return failureResponse(res, 403, "Test type access denied");
-    }
+    const validIds = await getOrgPlanTestTypeIds(test_type_ids, technician.org_id);
+    if (validIds.size !== test_type_ids.length)
+      return failureResponse(res, 400, "Invalid or unauthorized test type");
 
     const history = await createTestHistory({
       patient_id,

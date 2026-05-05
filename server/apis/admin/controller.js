@@ -1,7 +1,7 @@
 // controller.js
 import { addData, failureResponse, getPaginationInfo, hashPassword } from "../../utils.js";
 import { buildTestResultsXlsx } from "../../pdf/excelReportGenerator.js";
-import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions, bulkCreatePatientTestResults, bulkUpdateTestResultsBySession, createTestHistory, getTestTypesByIds, getTestTypesByOrg, updateTestHistory as updateTestHistoryDb, getResultsForCsvExport, getOrgById } from "../../database/db.js";
+import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions, bulkCreatePatientTestResults, bulkUpdateTestResultsBySession, createTestHistory, getTestTypesByOrg, getOrgPlanTestTypeIds, updateTestHistory as updateTestHistoryDb, getResultsForCsvExport, getOrgById } from "../../database/db.js";
 import moment from 'moment-timezone';
 import { constants } from "../../constants.js";
 import { emitToUser } from "../../socket.js";
@@ -755,12 +755,9 @@ export async function registerTestSessionAdmin(req, res) {
     if (!patient) return failureResponse(res, 404, "Patient not found");
     if (patient.org_id !== admin.org_id) return failureResponse(res, 403, "Access denied");
 
-    const testTypes = await getTestTypesByIds(test_type_ids);
-    if (testTypes.length !== test_type_ids.length)
-      return failureResponse(res, 400, "Invalid test_type_id");
-    for (const tt of testTypes) {
-      if (tt.org_id !== admin.org_id) return failureResponse(res, 403, "Test type access denied");
-    }
+    const validIds = await getOrgPlanTestTypeIds(test_type_ids, admin.org_id);
+    if (validIds.size !== test_type_ids.length)
+      return failureResponse(res, 400, "Invalid or unauthorized test type");
 
     const history = await createTestHistory({
       patient_id,
