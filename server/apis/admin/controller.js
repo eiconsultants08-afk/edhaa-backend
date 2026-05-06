@@ -858,7 +858,8 @@ export async function generateCsvReportAdmin(req, res) {
 
     return res.status(200).send({
       status: 200,
-      data: { xlsx_base64, filename: `report_${rawStart || "all"}_to_${rawEnd || "today"}.xlsx` },
+      // data: { xlsx_base64, filename: `report_${rawStart || "all"}_to_${rawEnd || "today"}.xlsx` },
+      data: { xlsx_base64, filename: `Test_Info.xlsx` },
       message: `${histories.length} sessions exported`,
     });
   } catch (err) {
@@ -894,7 +895,8 @@ export async function generatePdfReportAdmin(req, res) {
     });
 
     const pdf_base64 = pdfBuffer.toString("base64");
-    const filename   = `report_${rawStart || "all"}_to_${rawEnd || "today"}.pdf`;
+    // const filename   = `report_${rawStart || "all"}_to_${rawEnd || "today"}.pdf`;
+    const filename = `Test_Info.pdf`;
 
     return res.status(200).send({
       status: 200,

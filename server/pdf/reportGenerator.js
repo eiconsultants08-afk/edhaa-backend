@@ -44,11 +44,11 @@ function statusFor(r, gender) {
 
   const min =
     g === "MALE"   && r.male_min   != null ? Number(r.male_min)   :
-    g === "FEMALE" && r.female_min != null ? Number(r.female_min) :
+      g === "FEMALE" && r.female_min != null ? Number(r.female_min) :
     r.normal_min   != null ? Number(r.normal_min) : null;
   const max =
     g === "MALE"   && r.male_max   != null ? Number(r.male_max)   :
-    g === "FEMALE" && r.female_max != null ? Number(r.female_max) :
+      g === "FEMALE" && r.female_max != null ? Number(r.female_max) :
     r.normal_max   != null ? Number(r.normal_max) : null;
 
   if (min != null && max != null) {
@@ -116,13 +116,13 @@ function bioReference(r, gender) {
   }
   const g = (gender || "").toUpperCase();
   const min =
-    g === "MALE"   && r.male_min   != null ? Number(r.male_min)   :
-    g === "FEMALE" && r.female_min != null ? Number(r.female_min) :
-    r.normal_min   != null ? Number(r.normal_min) : null;
+    g === "MALE" && r.male_min != null ? Number(r.male_min) :
+      g === "FEMALE" && r.female_min != null ? Number(r.female_min) :
+        r.normal_min != null ? Number(r.normal_min) : null;
   const max =
-    g === "MALE"   && r.male_max   != null ? Number(r.male_max)   :
-    g === "FEMALE" && r.female_max != null ? Number(r.female_max) :
-    r.normal_max   != null ? Number(r.normal_max) : null;
+    g === "MALE" && r.male_max != null ? Number(r.male_max) :
+      g === "FEMALE" && r.female_max != null ? Number(r.female_max) :
+        r.normal_max != null ? Number(r.normal_max) : null;
   if (min != null && max != null) return `${min} - ${max}`;
   if (min == null && max != null) return `< ${max}`;
   if (min != null && max == null) return `> ${min}`;
@@ -131,9 +131,9 @@ function bioReference(r, gender) {
 
 function fmtDate(iso) {
   if (!iso) return "-";
-  const d    = new Date(iso);
-  const dd   = String(d.getDate()).padStart(2, "0");
-  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 }
@@ -148,28 +148,28 @@ function fmtTime(d = new Date()) {
 
 function hline(doc, y, lw = 0.5, color = BLACK) {
   doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y)
-     .strokeColor(color).lineWidth(lw).stroke();
+    .strokeColor(color).lineWidth(lw).stroke();
 }
 
 function vline(doc, x, y1, y2, lw = 0.5, color = BLACK) {
   doc.moveTo(x, y1).lineTo(x, y2)
-     .strokeColor(color).lineWidth(lw).stroke();
+    .strokeColor(color).lineWidth(lw).stroke();
 }
 
 // ── Header — plain text, no fills ─────────────────────────────────────────────
 
-const COMPANY_NAME    = "EDHAA INNOVATIONS PRIVATE LIMITED";
+const COMPANY_NAME = "EDHAA INNOVATIONS PRIVATE LIMITED";
 const COMPANY_ADDRESS = "6008, 6TH FLOOR, RBTIC BUILDING, IIT BOMBAY, POWAI, MUMBAI, 400076";
 
 function drawHeader(doc) {
   let y = MARGIN;
 
   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(16)
-     .text(COMPANY_NAME, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+    .text(COMPANY_NAME, MARGIN, y, { width: CW, align: "center", lineBreak: false });
   y += 22;
 
   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-     .text(COMPANY_ADDRESS, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+    .text(COMPANY_ADDRESS, MARGIN, y, { width: CW, align: "center", lineBreak: false });
   y += 16;
 
   hline(doc, y, 1, BLACK);
@@ -180,7 +180,7 @@ function drawHeader(doc) {
 
 function sectionHead(doc, label, y) {
   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(10)
-     .text(label, MARGIN, y + 4, { width: CW, align: "center", lineBreak: false });
+    .text(label, MARGIN, y + 4, { width: CW, align: "center", lineBreak: false });
   return y + 22;
 }
 
@@ -193,62 +193,62 @@ function drawPatientInfo(doc, session, startY) {
 
   const rows = [
     [
-      { label: "Sample ID",                value: code                                            },
+      { label: "Sample ID", value: code },
       { label: "Received & Reported Date", value: `${fmtDate(session.test_date)}  ${fmtTime()}` },
     ],
     [
-      { label: "Patient ID",               value: code                                            },
-      { label: "Ref. By.",                 value: session.org_name || "-"                        },
+      { label: "Patient ID", value: code },
+      { label: "Ref. By.", value: session.org_name || "-" },
     ],
     [
-      { label: "Start Date",               value: fmtDate(session.test_date)                     },
-      { label: "",                          value: ""                                              },
+      { label: "Start Date", value: fmtDate(session.test_date) },
+      { label: "", value: "" },
     ],
   ];
 
-  const RH  = 22;
+  const RH = 22;
   const C1W = 120;
   const C2W = 138;
   const C3W = 120;
   const C4W = CW - C1W - C2W - C3W;
   const totalH = rows.length * RH;
-  const topY   = y;
+  const topY = y;
 
   // Outer border
   doc.rect(MARGIN, topY, CW, totalH).strokeColor(BLACK).lineWidth(0.5).stroke();
 
   // Vertical column dividers — full height
-  vline(doc, MARGIN + C1W,               topY, topY + totalH, 0.5, BLACK);
-  vline(doc, MARGIN + C1W + C2W,         topY, topY + totalH, 0.5, BLACK);
-  vline(doc, MARGIN + C1W + C2W + C3W,   topY, topY + totalH, 0.5, BLACK);
+  vline(doc, MARGIN + C1W, topY, topY + totalH, 0.5, BLACK);
+  vline(doc, MARGIN + C1W + C2W, topY, topY + totalH, 0.5, BLACK);
+  vline(doc, MARGIN + C1W + C2W + C3W, topY, topY + totalH, 0.5, BLACK);
 
   rows.forEach((pair, ri) => {
     // Horizontal divider between rows (not before first)
     if (ri > 0) {
       doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y)
-         .strokeColor(BLACK).lineWidth(0.5).stroke();
+        .strokeColor(BLACK).lineWidth(0.5).stroke();
     }
 
     let x = MARGIN;
 
     // Label 1 — bold
     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5)
-       .text(pair[0].label, x + 5, y + 7, { width: C1W - 8, lineBreak: false });
+      .text(pair[0].label, x + 5, y + 7, { width: C1W - 8, lineBreak: false });
     x += C1W;
 
     // Value 1
     doc.fillColor(BLACK).font("Helvetica").fontSize(8.5)
-       .text(pair[0].value, x + 5, y + 7, { width: C2W - 8, lineBreak: false });
+      .text(pair[0].value, x + 5, y + 7, { width: C2W - 8, lineBreak: false });
     x += C2W;
 
     // Label 2 — bold
     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5)
-       .text(pair[1].label, x + 5, y + 7, { width: C3W - 8, lineBreak: false });
+      .text(pair[1].label, x + 5, y + 7, { width: C3W - 8, lineBreak: false });
     x += C3W;
 
     // Value 2
     doc.fillColor(BLACK).font("Helvetica").fontSize(8.5)
-       .text(pair[1].value, x + 5, y + 7, { width: C4W - 8, lineBreak: false });
+      .text(pair[1].value, x + 5, y + 7, { width: C4W - 8, lineBreak: false });
 
     y += RH;
   });
@@ -266,7 +266,7 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
   // Column sequence: Test Name | Unit | Value | Range | Method — sum ≈ 515 = CW
   const COLS = [140, 60, 85, 120, 110];
   const HDRS = ["Test Name", "Unit", "Value", "Range", "Method"];
-  const RH   = 28; // taller rows so wrapped method text stays within the cell
+  const RH = 28; // taller rows so wrapped method text stays within the cell
 
   // ── Header row ──────────────────────────────────────────────────────────────
   doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.5).stroke();
@@ -275,19 +275,19 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
   HDRS.forEach((h, i) => {
     if (i > 0) vline(doc, hx, y, y + RH, 0.5, BLACK);
     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-       .text(h, hx + 5, y + 9, { width: COLS[i] - 10, align: "center", lineBreak: false });
+      .text(h, hx + 5, y + 9, { width: COLS[i] - 10, align: "center", lineBreak: false });
     hx += COLS[i];
   });
   y += RH;
 
   // ── Data rows ───────────────────────────────────────────────────────────────
   results.forEach((r) => {
-    const status     = statusFor(r, patientGender);
-    const unit       = sanitize(r.test_type_unit || r.unit || "");
-    const rawVal     = r.value_text != null
+    const status = statusFor(r, patientGender);
+    const unit = sanitize(r.test_type_unit || r.unit || "");
+    const rawVal = r.value_text != null
       ? r.value_text
       : (r.value_num != null ? String(r.value_num) : "-");
-    const resColor   = colorResults && status ? statusColor(status) : BLACK;
+    const resColor = colorResults && status ? statusColor(status) : BLACK;
 
     // Row border (draw before text so borders don't overdraw text)
     doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.3).stroke();
@@ -308,32 +308,32 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
       ? `${r.test_full_name} (${r.test_type_name})`
       : (r.test_type_name || "-");
     doc.fillColor(BLACK).font("Helvetica").fontSize(9)
-       .text(testLabel, cx + 5, y + 9,
-         { width: COLS[0] - 10, align: "left", lineBreak: false });
+      .text(testLabel, cx + 5, y + 9,
+        { width: COLS[0] - 10, align: "left", lineBreak: false });
     cx += COLS[0];
 
     // Col 1 — Unit (centred)
     doc.fillColor(GRAY).font("Helvetica").fontSize(9)
-       .text(unit || "-", cx + 5, y + 9,
-         { width: COLS[1] - 10, align: "center", lineBreak: false });
+      .text(unit || "-", cx + 5, y + 9,
+        { width: COLS[1] - 10, align: "center", lineBreak: false });
     cx += COLS[1];
 
     // Col 2 — Value (centred, bold+colour when abnormal)
     doc.fillColor(resColor).font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
-       .text(rawVal, cx + 5, y + 9,
-         { width: COLS[2] - 10, align: "center", lineBreak: false });
+      .text(rawVal, cx + 5, y + 9,
+        { width: COLS[2] - 10, align: "center", lineBreak: false });
     cx += COLS[2];
 
     // Col 3 — Range (centred, single line)
     doc.fillColor(GRAY).font("Helvetica").fontSize(9)
-       .text(bioReference(r, patientGender), cx + 5, y + 9,
-         { width: COLS[3] - 10, align: "center", lineBreak: false });
+      .text(bioReference(r, patientGender), cx + 5, y + 9,
+        { width: COLS[3] - 10, align: "center", lineBreak: false });
     cx += COLS[3];
 
     // Col 4 — Method (centred, allow line wrapping — top-aligned within cell)
     doc.fillColor(GRAY).font("Helvetica").fontSize(8.5)
-       .text(methodCell(r), cx + 5, y + 6,
-         { width: COLS[4] - 10, align: "center" });
+      .text(methodCell(r), cx + 5, y + 6,
+        { width: COLS[4] - 10, align: "center" });
 
     y += RH;
   });
@@ -349,7 +349,7 @@ function drawFooter(doc, y) {
   y += 8;
 
   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
-     .text("Disclaimer:", MARGIN, y, { width: CW, lineBreak: false });
+    .text("Disclaimer:", MARGIN, y, { width: CW, lineBreak: false });
   y += 13;
 
   const lines = [
@@ -360,14 +360,14 @@ function drawFooter(doc, y) {
 
   lines.forEach((line) => {
     doc.fillColor(GRAY).font("Helvetica").fontSize(7.5)
-       .text(line, MARGIN + 4, y, { width: CW - 4 });
+      .text(line, MARGIN + 4, y, { width: CW - 4 });
     y = doc.y + 2;
   });
 
   y += 6;
   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-     .text("THIS IS A SYSTEM GENERATED REPORT", MARGIN, y,
-       { width: CW, align: "center", lineBreak: false });
+    .text("THIS IS A SYSTEM GENERATED REPORT", MARGIN, y,
+      { width: CW, align: "center", lineBreak: false });
 
   return y + 14;
 }
@@ -377,8 +377,8 @@ function drawFooter(doc, y) {
 function stampPageNum(doc, pageNum, totalPages) {
   const py = PAGE_H - 18;
   doc.fillColor(GRAY).font("Helvetica").fontSize(7.5)
-     .text(`Page ${pageNum} of ${totalPages}`, MARGIN, py,
-       { width: CW, align: "right", lineBreak: false });
+    .text(`Page ${pageNum} of ${totalPages}`, MARGIN, py,
+      { width: CW, align: "right", lineBreak: false });
 }
 
 // ── Exported generators ────────────────────────────────────────────────────────
@@ -390,14 +390,14 @@ function stampPageNum(doc, pageNum, totalPages) {
  */
 export function generateSessionReportPdf(session) {
   return new Promise((resolve, reject) => {
-    const orgName  = session.org_name        || "EDHAA Diagnostic";
+    const orgName = session.org_name || "EDHAA Diagnostic";
     const deptName = session.department_name || "";
-    const results  = session.results         || [];
+    const results = session.results || [];
 
     const doc = new PDFDocument({ margin: 0, autoFirstPage: false, size: "A4" });
     const buffers = [];
-    doc.on("data",  (b) => buffers.push(b));
-    doc.on("end",   () => resolve(Buffer.concat(buffers)));
+    doc.on("data", (b) => buffers.push(b));
+    doc.on("end", () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
     doc.addPage();
@@ -421,10 +421,10 @@ export function generateSessionReportPdf(session) {
  */
 export function generateBulkReportPdf(histories, meta = {}) {
   return new Promise((resolve, reject) => {
-    const orgName    = meta.orgName    || "EDHAA Diagnostic";
+    const orgName = meta.orgName || "EDHAA Diagnostic";
     const orgAddress = meta.orgAddress || "";
-    const deptName   = meta.deptName   || "";
-    const label     = meta.startDate && meta.endDate
+    const deptName = meta.deptName || "";
+    const label = meta.startDate && meta.endDate
       ? `${meta.startDate}  to  ${meta.endDate}`
       : "All dates";
     const performer = meta.performerLabel || "";
@@ -432,20 +432,20 @@ export function generateBulkReportPdf(histories, meta = {}) {
     // Flatten histories → one row per test result
     const rows = [];
     for (const hist of histories) {
-      const h  = typeof hist.get === "function" ? hist.get({ plain: true }) : hist;
-      const p  = h.patient   || {};
+      const h = typeof hist.get === "function" ? hist.get({ plain: true }) : hist;
+      const p = h.patient || {};
       const eb = h.enteredBy || {};
-      const results  = h.results || [];
-      const dateStr  = fmtDate(h.test_date);
+      const results = h.results || [];
+      const dateStr = fmtDate(h.test_date);
       const patientLabel = p.name
         ? `${p.name}${p.patient_id ? " #" + p.patient_id : ""}`
         : "-";
       const genderStr = (p.gender || "").charAt(0).toUpperCase() || "-";
 
       for (const res of results) {
-        const tt      = res.testType || {};
-        const unit    = sanitize(tt.unit || "");
-        const rawVal  = res.value_text != null
+        const tt = res.testType || {};
+        const unit = sanitize(tt.unit || "");
+        const rawVal = res.value_text != null
           ? res.value_text
           : (res.value_num != null ? String(res.value_num) : "-");
         // Qualitative results never get a unit appended
@@ -453,17 +453,17 @@ export function generateBulkReportPdf(histories, meta = {}) {
 
         const flatR = {
           is_qualitative: tt.is_qualitative,
-          value_text:     res.value_text,
-          value_num:      res.value_num,
+          value_text: res.value_text,
+          value_num: res.value_num,
           normal_min: tt.normal_min, normal_max: tt.normal_max,
-          male_min:   tt.male_min,   male_max:   tt.male_max,
+          male_min: tt.male_min, male_max: tt.male_max,
           female_min: tt.female_min, female_max: tt.female_max,
         };
-        const status    = statusFor(flatR, p.gender);
+        const status = statusFor(flatR, p.gender);
         const methodStr = methodCell({
           specimen_type: tt.specimen_type,
-          method_used:   res.method_used,
-          method:        tt.method,
+          method_used: res.method_used,
+          method: tt.method,
         });
 
         rows.push({
@@ -480,63 +480,130 @@ export function generateBulkReportPdf(histories, meta = {}) {
     // ── Layout ──────────────────────────────────────────────────────────────────
     const COLS = [60, 115, 115, 78, 52, 95]; // Date | Patient | Test | Result | Status | Method = 515
     const HDRS = ["Date", "Patient", "Test", "Result", "Status", "Method"];
-    const RH   = 24; // taller rows so wrapped method text stays within the cell
+    const RH = 24; // taller rows so wrapped method text stays within the cell
 
     const doc = new PDFDocument({ margin: 0, autoFirstPage: false, size: "A4" });
     const buffers = [];
-    doc.on("data",  (b) => buffers.push(b));
-    doc.on("end",   () => resolve(Buffer.concat(buffers)));
+    doc.on("data", (b) => buffers.push(b));
+    doc.on("end", () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
-    let pageNum    = 0;
+    let pageNum = 0;
     const totalRows = rows.length;
+
+    // const addPage = () => {
+    //   doc.addPage();
+    //   pageNum++;
+    //   let y = MARGIN;
+
+    //   // Org name — plain bold centred
+    //   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(14)
+    //      .text(orgName, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+    //   y += 20;
+
+    //   if (orgAddress) {
+    //     doc.fillColor(GRAY).font("Helvetica").fontSize(9)
+    //        .text(orgAddress, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+    //     y += 14;
+    //   }
+
+    //   if (deptName) {
+    //     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
+    //        .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y,
+    //          { width: CW, align: "center", lineBreak: false });
+    //     y += 14;
+    //   }
+
+    //   // Report period sub-line
+    //   const subtitle = [
+    //     performer || null,
+    //     `Report Period: ${label}`,
+    //     `Total Results: ${totalRows}`,
+    //   ].filter(Boolean).join("   |   ");
+    //   doc.fillColor(GRAY).font("Helvetica").fontSize(8)
+    //      .text(subtitle, MARGIN, y, { width: CW, align: "center", lineBreak: false });
+    //   y += 14;
+
+    //   hline(doc, y, 1, BLACK);
+    //   y += 8;
+
+    //   // Table header row — stroke-only, bold text
+    //   doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.5).stroke();
+    //   let hx = MARGIN;
+    //   HDRS.forEach((h, i) => {
+    //     if (i > 0) vline(doc, hx, y, y + RH, 0.5, BLACK);
+    //     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
+    //        .text(h, hx + 4, y + 8, { width: COLS[i] - 8, align: "center", lineBreak: false });
+    //     hx += COLS[i];
+    //   });
+    //   y += RH;
+    //   return y;
+    // };
 
     const addPage = () => {
       doc.addPage();
       pageNum++;
-      let y = MARGIN;
 
-      // Org name — plain bold centred
-      doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(14)
-         .text(orgName, MARGIN, y, { width: CW, align: "center", lineBreak: false });
-      y += 20;
+      // SAME HEADER AS PATIENT PDF
+      let y = drawHeader(doc);
 
-      if (orgAddress) {
-        doc.fillColor(GRAY).font("Helvetica").fontSize(9)
-           .text(orgAddress, MARGIN, y, { width: CW, align: "center", lineBreak: false });
-        y += 14;
-      }
+      // Report title
+      doc.fillColor(BLACK)
+        .font("Helvetica-Bold")
+        .fontSize(14)
+        .text(orgName, MARGIN, y + 5, {
+          width: CW,
+          align: "center",
+          lineBreak: false
+        });
 
-      if (deptName) {
-        doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-           .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y,
-             { width: CW, align: "center", lineBreak: false });
-        y += 14;
-      }
+      y += 25;
 
-      // Report period sub-line
       const subtitle = [
         performer || null,
         `Report Period: ${label}`,
         `Total Results: ${totalRows}`,
       ].filter(Boolean).join("   |   ");
-      doc.fillColor(GRAY).font("Helvetica").fontSize(8)
-         .text(subtitle, MARGIN, y, { width: CW, align: "center", lineBreak: false });
-      y += 14;
+
+      doc.fillColor(GRAY)
+        .font("Helvetica")
+        .fontSize(8)
+        .text(subtitle, MARGIN, y, {
+          width: CW,
+          align: "center",
+          lineBreak: false
+        });
+
+      y += 18;
 
       hline(doc, y, 1, BLACK);
       y += 8;
 
-      // Table header row — stroke-only, bold text
-      doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.5).stroke();
+      // TABLE HEADER
+      doc.rect(MARGIN, y, CW, RH)
+        .strokeColor(BLACK)
+        .lineWidth(0.5)
+        .stroke();
+
       let hx = MARGIN;
+
       HDRS.forEach((h, i) => {
         if (i > 0) vline(doc, hx, y, y + RH, 0.5, BLACK);
-        doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
-           .text(h, hx + 4, y + 8, { width: COLS[i] - 8, align: "center", lineBreak: false });
+
+        doc.fillColor(BLACK)
+          .font("Helvetica-Bold")
+          .fontSize(8)
+          .text(h, hx + 4, y + 8, {
+            width: COLS[i] - 8,
+            align: "center",
+            lineBreak: false
+          });
+
         hx += COLS[i];
       });
+
       y += RH;
+
       return y;
     };
 
@@ -561,22 +628,22 @@ export function generateBulkReportPdf(histories, meta = {}) {
 
       // All text in bulk report uses plain black — no status colouring
       const cells = [
-        { text: row.dateStr,      color: BLACK, align: "center", wrap: false },
-        { text: row.patientLabel, color: BLACK, align: "left",   wrap: false },
-        { text: row.testName,     color: BLACK, align: "left",   wrap: false },
-        { text: row.resDisplay,   color: BLACK, align: "center", wrap: false },
-        { text: row.status,       color: BLACK, align: "center", wrap: false },
-        { text: row.methodStr,    color: GRAY,  align: "center", wrap: true  },
+        { text: row.dateStr, color: BLACK, align: "center", wrap: false },
+        { text: row.patientLabel, color: BLACK, align: "left", wrap: false },
+        { text: row.testName, color: BLACK, align: "left", wrap: false },
+        { text: row.resDisplay, color: BLACK, align: "center", wrap: false },
+        { text: row.status, color: BLACK, align: "center", wrap: false },
+        { text: row.methodStr, color: GRAY, align: "center", wrap: true },
       ];
 
       let cx = MARGIN;
       cells.forEach((cell, i) => {
         const textY = cell.wrap ? y + 5 : y + 8;
-        const opts  = cell.wrap
+        const opts = cell.wrap
           ? { width: COLS[i] - 8, align: cell.align }
           : { width: COLS[i] - 8, align: cell.align, lineBreak: false };
         doc.fillColor(cell.color).font("Helvetica").fontSize(8)
-           .text(cell.text, cx + 4, textY, opts);
+          .text(cell.text, cx + 4, textY, opts);
         cx += COLS[i];
       });
 
@@ -585,10 +652,10 @@ export function generateBulkReportPdf(histories, meta = {}) {
 
     if (rows.length === 0) {
       doc.fillColor(GRAY).font("Helvetica").fontSize(10)
-         .text("No test results found for the selected date range.", MARGIN, y + 20,
-           { width: CW, align: "center", lineBreak: false });
+        .text("No test results found for the selected date range.", MARGIN, y + 20,
+          { width: CW, align: "center", lineBreak: false });
     }
-
+    drawFooter(doc, y);
     stampPageNum(doc, pageNum, pageNum);
     doc.end();
   });
@@ -601,37 +668,37 @@ export function generateBulkReportPdf(histories, meta = {}) {
  */
 export function generateTestReportPdf(result) {
   const session = {
-    org_name:        result.org_name,
+    org_name: result.org_name,
     department_name: result.department_name,
-    patient_name:    result.patient_name,
-    patient_gender:  result.patient_gender,
-    patient_dob:     result.patient_dob,
-    patient_phone:   result.patient_phone,
-    patient_email:   result.patient_email,
-    patient_id:      result.patient_id,
-    test_date:       result.test_date,
-    device_id:       result.device_id,
-    notes:           result.notes,
+    patient_name: result.patient_name,
+    patient_gender: result.patient_gender,
+    patient_dob: result.patient_dob,
+    patient_phone: result.patient_phone,
+    patient_email: result.patient_email,
+    patient_id: result.patient_id,
+    test_date: result.test_date,
+    device_id: result.device_id,
+    notes: result.notes,
     entered_by_name: result.entered_by_name,
     results: [{
-      test_type_name:  result.test_type_name,
-      test_full_name:  result.test_full_name,
-      test_type_unit:  result.test_type_unit,
-      value_num:       result.value_num,
-      value_text:      result.value_text,
-      normal_min:      result.normal_min,
-      normal_max:      result.normal_max,
-      male_min:        result.male_min,
-      male_max:        result.male_max,
-      female_min:      result.female_min,
-      female_max:      result.female_max,
-      reference_text:  result.reference_text,
-      critical_low:    result.critical_low,
-      critical_high:   result.critical_high,
-      is_qualitative:  result.is_qualitative,
-      method_used:     result.method_used,
-      method:          result.method,
-      specimen_type:   result.specimen_type,   // ← fixed: was missing, broke methodCell()
+      test_type_name: result.test_type_name,
+      test_full_name: result.test_full_name,
+      test_type_unit: result.test_type_unit,
+      value_num: result.value_num,
+      value_text: result.value_text,
+      normal_min: result.normal_min,
+      normal_max: result.normal_max,
+      male_min: result.male_min,
+      male_max: result.male_max,
+      female_min: result.female_min,
+      female_max: result.female_max,
+      reference_text: result.reference_text,
+      critical_low: result.critical_low,
+      critical_high: result.critical_high,
+      is_qualitative: result.is_qualitative,
+      method_used: result.method_used,
+      method: result.method,
+      specimen_type: result.specimen_type,   // ← fixed: was missing, broke methodCell()
     }],
   };
   return generateSessionReportPdf(session);
