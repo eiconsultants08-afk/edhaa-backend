@@ -22,6 +22,7 @@ import {
   getResultsForCsvExport,
   getOrgById,
   createUartTestResult,
+  updateUartSession,
 } from "../../database/db.js";
 import { addData, failureResponse, getPaginationInfo } from "../../utils.js";
 import { buildTestResultsXlsx } from "../../pdf/excelReportGenerator.js";
@@ -723,6 +724,50 @@ export async function submitUartResult(req, res) {
     });
   } catch (err) {
     console.error("submitUartResult error:", err);
+    return res.status(500).send({ status: 500, message: err.message || "Internal server error" });
+  }
+}
+
+export async function submitUartSessionComplete(req, res) {
+  try {
+    const { user_id } = req;
+    if (!user_id) return failureResponse(res, 401, "Unauthorized");
+
+    const technician = await getUserByCondition({ user_id });
+    if (!technician) return failureResponse(res, 404, "User not found");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
+
+    const { patient_id, results } = req.body || {};
+
+    if (!patient_id)                                     return failureResponse(res, 400, "patient_id required");
+    if (!Array.isArray(results) || results.length === 0) return failureResponse(res, 400, "results array required");
+
+    for (const r of results) {
+      if (!r.test_name)                         return failureResponse(res, 400, "each result must have test_name");
+      if (r.value_num == null && !r.value_text) return failureResponse(res, 400, `value_num or value_text required for "${r.test_name}"`);
+    }
+
+    const patient = await getPatientByIdFlat({ patient_id });
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+    if (patient.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Patient not in your organization");
+
+    const { history_id } = await updateUartSession({
+      patient_id,
+      org_id: technician.org_id,
+      results,
+    });
+
+    return res.status(200).send({
+      status: 200,
+      data: { history_id },
+      message: "Session updated and completed successfully",
+    });
+  } catch (err) {
+    console.error("submitUartSessionComplete error:", err);
     return res.status(500).send({ status: 500, message: err.message || "Internal server error" });
   }
 }

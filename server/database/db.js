@@ -945,3 +945,50 @@ export async function createUartTestResult({ patient_id, test_name, value_num, m
     return history;
   });
 }
+
+// Finds the single PENDING session for a patient, fills in result values from UART,
+// and marks the session COMPLETED — all in one transaction.
+export async function updateUartSession({ patient_id, org_id, results }) {
+  return sequelize.transaction(async (t) => {
+    const pending = await TestHistory.findAll({
+      where: { patient_id, org_id, status: "PENDING" },
+      order: [["test_date", "DESC"]],
+      limit: 2,
+      transaction: t,
+    });
+
+    if (pending.length === 0) throw new Error("No pending session found for this patient");
+    if (pending.length > 1)  throw new Error("Multiple pending sessions found — specify history_id");
+
+    const history_id = pending[0].history_id;
+
+    for (const { test_name, value_num, value_text, method_used } of results) {
+      const [testType] = await sequelize.query(`
+        SELECT tt.test_type_id
+        FROM test_types tt
+        JOIN plan_test_types ptt ON ptt.test_type_id = tt.test_type_id
+        JOIN organizations o ON o.plan_id = ptt.plan_id
+        WHERE o.org_id = :org_id AND tt.name = :name
+        LIMIT 1
+      `, { replacements: { org_id, name: test_name }, type: sequelize.QueryTypes.SELECT, transaction: t });
+
+      if (!testType) throw new Error(`Test type "${test_name}" not found in org plan`);
+
+      await PatientTestResults.update(
+        {
+          value_num:   value_num  ?? null,
+          value_text:  value_text ?? null,
+          method_used: method_used || null,
+        },
+        { where: { history_id, test_type_id: testType.test_type_id }, transaction: t }
+      );
+    }
+
+    await TestHistory.update(
+      { status: "COMPLETED" },
+      { where: { history_id }, transaction: t }
+    );
+
+    return { history_id };
+  });
+}

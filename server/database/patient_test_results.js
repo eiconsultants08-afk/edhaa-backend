@@ -13,10 +13,9 @@ const PatientTestResults = sequelize.define(
       primaryKey: true,
     },
 
-    // FK → TestHistory (nullable so existing rows without a history survive sync)
     history_id: {
       type: DataTypes.UUID,
-      allowNull: true,
+      allowNull: false,
     },
 
     // Kept on the result row for direct patient-scoped queries without joining TestHistory
