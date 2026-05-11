@@ -910,39 +910,49 @@ export async function getOrgById(org_id) {
   });
 }
 
-export async function createUartTestResult({ patient_id, test_name, value_num, method_used, entered_by_user_id, department_id, org_id }) {
+// Bulk UART insert — each entry creates its own session + result row.
+// entries: [{ patient_id, test_name, value_num, value_raw, method_used }]
+export async function createUartTestResults({ entries, entered_by_user_id, department_id, org_id }) {
   return sequelize.transaction(async (t) => {
-    const [testType] = await sequelize.query(`
-      SELECT tt.*
-      FROM test_types tt
-      JOIN plan_test_types ptt ON ptt.test_type_id = tt.test_type_id
-      JOIN organizations o ON o.plan_id = ptt.plan_id
-      WHERE o.org_id = :org_id AND tt.name = :name
-      LIMIT 1
-    `, { replacements: { org_id, name: test_name }, type: sequelize.QueryTypes.SELECT, transaction: t });
-    if (!testType) throw new Error(`Test type "${test_name}" not found in org`);
+    const created = [];
 
-    const history = await TestHistory.create({
-      history_id:         randomUUID(),
-      patient_id,
-      org_id,
-      department_id:      department_id || null,
-      entered_by_user_id,
-      test_date:          new Date(),
-      status:             "COMPLETED",
-    }, { transaction: t });
+    for (const entry of entries) {
+      const { patient_id, test_name, value_num, method_used } = entry;
 
-    await PatientTestResults.create({
-      result_id:    randomUUID(),
-      history_id:   history.history_id,
-      patient_id,
-      org_id,
-      test_type_id: testType.test_type_id,
-      value_num,
-      method_used:  method_used || null,
-    }, { transaction: t });
+      const [testType] = await sequelize.query(`
+        SELECT tt.*
+        FROM test_types tt
+        JOIN plan_test_types ptt ON ptt.test_type_id = tt.test_type_id
+        JOIN organizations o ON o.plan_id = ptt.plan_id
+        WHERE o.org_id = :org_id AND tt.name = :name
+        LIMIT 1
+      `, { replacements: { org_id, name: test_name }, type: sequelize.QueryTypes.SELECT, transaction: t });
+      if (!testType) throw new Error(`Test type "${test_name}" not found in org plan`);
 
-    return history;
+      const history = await TestHistory.create({
+        history_id:         randomUUID(),
+        patient_id,
+        org_id,
+        department_id:      department_id || null,
+        entered_by_user_id,
+        test_date:          new Date(),
+        status:             "COMPLETED",
+      }, { transaction: t });
+
+      await PatientTestResults.create({
+        result_id:    randomUUID(),
+        history_id:   history.history_id,
+        patient_id,
+        org_id,
+        test_type_id: testType.test_type_id,
+        value_num:    value_num ?? null,
+        method_used:  method_used || null,
+      }, { transaction: t });
+
+      created.push({ patient_id, history_id: history.history_id });
+    }
+
+    return created;
   });
 }
 

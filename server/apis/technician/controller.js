@@ -21,7 +21,7 @@ import {
   countUnfilledResults,
   getResultsForCsvExport,
   getOrgById,
-  createUartTestResult,
+  createUartTestResults,
   updateUartSession,
 } from "../../database/db.js";
 import { addData, failureResponse, getPaginationInfo } from "../../utils.js";
@@ -684,6 +684,8 @@ export async function generatePdfReportTechnician(req, res) {
   }
 }
 
+// Accepts an array of UART readings — each creates its own session + result row.
+// Body: [{ patient_id, test, val, unit, raw }, ...]
 export async function submitUartResult(req, res) {
   try {
     const { user_id } = req;
@@ -696,22 +698,32 @@ export async function submitUartResult(req, res) {
     if (technician.role !== constants.TECHNICIAN)
       return failureResponse(res, 403, "Forbidden");
 
-    const { patient_id, test, val, method } = req.body || {};
+    const body = req.body;
+    const items = Array.isArray(body) ? body : [body];
 
-    if (!patient_id) return failureResponse(res, 400, "patient_id required");
-    if (!test)       return failureResponse(res, 400, "test required");
-    if (val == null) return failureResponse(res, 400, "val required");
+    for (const item of items) {
+      if (!item.patient_id) return failureResponse(res, 400, "patient_id required in each entry");
+      if (!item.test)       return failureResponse(res, 400, "test required in each entry");
+      if (item.val == null) return failureResponse(res, 400, "val required in each entry");
+    }
 
-    const patient = await getPatientByIdFlat({ patient_id });
-    if (!patient) return failureResponse(res, 404, "Patient not found");
-    if (patient.org_id !== technician.org_id)
-      return failureResponse(res, 403, "Patient not in your organization");
+    // Validate all patients belong to the technician's org
+    for (const item of items) {
+      const patient = await getPatientByIdFlat({ patient_id: String(item.patient_id) });
+      if (!patient) return failureResponse(res, 404, `Patient ${item.patient_id} not found`);
+      if (patient.org_id !== technician.org_id)
+        return failureResponse(res, 403, `Patient ${item.patient_id} not in your organization`);
+    }
 
-    const history = await createUartTestResult({
-      patient_id,
-      test_name:          test,
-      value_num:          Number(val),
-      method_used:        method || null,
+    const entries = items.map(item => ({
+      patient_id:  String(item.patient_id),
+      test_name:   item.test,
+      value_num:   Number(item.val),
+      method_used: item.method || null,
+    }));
+
+    const created = await createUartTestResults({
+      entries,
       entered_by_user_id: technician.user_id,
       department_id:      technician.department_id || null,
       org_id:             technician.org_id,
@@ -719,8 +731,8 @@ export async function submitUartResult(req, res) {
 
     return res.status(201).send({
       status: 201,
-      data: { history_id: history.history_id },
-      message: "Result stored successfully",
+      data: created,
+      message: "Results stored successfully",
     });
   } catch (err) {
     console.error("submitUartResult error:", err);

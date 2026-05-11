@@ -133,6 +133,7 @@ async function startPostgres() {
     await sequelize.query(`ALTER TABLE patient_test_results ALTER COLUMN history_id SET NOT NULL;`);
     console.log("✅ patient_test_results.history_id enforced NOT NULL");
 
+
     await sequelize.sync();
     console.log("✅ Models synced!");
 
