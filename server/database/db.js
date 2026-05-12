@@ -650,8 +650,8 @@ export async function bulkUpdateTestResultsBySession(history_id, testsArray) {
   const updates = testsArray.map(t =>
     PatientTestResults.update(
       {
-        value_num:   t.value_num   ?? null,
-        value_text:  t.value_text  ?? null,
+        value_num: t.value_num ?? null,
+        value_text: t.value_text ?? null,
         method_used: t.method_used ?? null,
       },
       { where: { history_id, test_type_id: t.test_type_id } }
@@ -665,7 +665,7 @@ export async function countUnfilledResults(history_id) {
   return PatientTestResults.count({
     where: {
       history_id,
-      value_num:  null,
+      value_num: null,
       value_text: null,
     },
   });
@@ -910,9 +910,307 @@ export async function getOrgById(org_id) {
   });
 }
 
-// Bulk UART insert — each entry creates its own session + result row.
-// entries: [{ patient_id, test_name, value_num, value_raw, method_used }]
-export async function createUartTestResults({ entries, entered_by_user_id, department_id, org_id }) {
+export async function createOrganization(data) {
+  return Organization.create(data);
+}
+
+export async function updateOrganization(org_id, data) {
+  const [updated] = await Organization.update(data, {
+    where: { org_id },
+  });
+
+  if (!updated) return null;
+
+  return Organization.findOne({
+    where: { org_id },
+    raw: true,
+  });
+}
+
+export async function getOrganizations(limit, offset) {
+  const options = {
+    limit,
+    offset,
+    order: [["created_at", "DESC"]],
+    raw: true,
+  };
+
+  if (offset > 0) options.offset = offset;
+
+  return Organization.findAndCountAll(options);
+}
+
+export async function getSuperAdminCounts() {
+  const rows = await sequelize.query(
+    `
+    SELECT
+      (SELECT COUNT(*)::int FROM organizations) AS total_organizations,
+      (SELECT COUNT(*)::int FROM users WHERE role = 'ADMIN') AS total_admins,
+      (SELECT COUNT(*)::int FROM users WHERE role = 'TECHNICIAN') AS total_technicians,
+      (SELECT COUNT(*)::int FROM test_types) AS total_tests,
+      (SELECT COUNT(*)::int FROM devices) AS total_devices,
+      (SELECT COUNT(*)::int FROM patients) AS total_patients
+    `,
+    { type: sequelize.QueryTypes.SELECT }
+  );
+
+  return rows[0];
+}
+
+export async function getAllTestTypes(limit, offset) {
+  const options = {
+    limit,
+    order: [["created_at", "DESC"]],
+    raw: true,
+  };
+
+  if (offset > 0) options.offset = offset;
+
+  return TestTypes.findAndCountAll(options);
+}
+
+export async function getTestTypeById(test_type_id) {
+  return TestTypes.findOne({
+    where: { test_type_id },
+    raw: true,
+  });
+}
+
+export async function updateTestType(test_type_id, data) {
+  const [updated] = await TestTypes.update(data, {
+    where: { test_type_id },
+  });
+
+  if (!updated) return null;
+
+  return TestTypes.findOne({
+    where: { test_type_id },
+    raw: true,
+  });
+}
+
+export async function updateUser(user_id, data) {
+  const [updated] = await Users.update(data, {
+    where: { user_id },
+  });
+
+  if (!updated) return null;
+
+  return Users.findOne({
+    where: { user_id },
+    raw: true,
+  });
+}
+
+export async function getSuperAdminAnalytics() {
+  const [
+    mostUsedDevices,
+    mostPerformedTests,
+    monthlyTestTrend,
+    organizationActivity,
+    organizationPatients,
+    testCategoryBreakdown,
+    topTechnicians,
+    testCompletionRate,
+    genderAnalysis,
+  ] = await Promise.all([
+
+    sequelize.query(
+      `
+  WITH device_test_counts AS (
+    SELECT
+      TRIM(th.device_id) AS device_id,
+      tt.name AS test_name,
+      COUNT(ptr.result_id)::int AS test_count
+    FROM patient_test_results ptr
+    JOIN test_histories th
+      ON th.history_id = ptr.history_id
+    JOIN test_types tt
+      ON tt.test_type_id = ptr.test_type_id
+    WHERE th.device_id IS NOT NULL
+    GROUP BY TRIM(th.device_id), tt.name
+  ),
+  device_counts AS (
+    SELECT
+      device_id,
+      SUM(test_count)::int AS count
+    FROM device_test_counts
+    GROUP BY device_id
+  )
+  SELECT
+    dc.device_id AS name,
+    dc.count,
+    COALESCE(
+      json_agg(
+        json_build_object(
+          'test_name', dtc.test_name,
+          'test_count', dtc.test_count
+        )
+        ORDER BY dtc.test_count DESC
+      ) FILTER (WHERE dtc.test_name IS NOT NULL),
+      '[]'
+    ) AS tests
+  FROM device_counts dc
+  LEFT JOIN device_test_counts dtc
+    ON dtc.device_id = dc.device_id
+  GROUP BY dc.device_id, dc.count
+  ORDER BY dc.count DESC
+  LIMIT 10
+  `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+    sequelize.query(
+      `
+      SELECT 
+        COALESCE(tt.name, 'Unknown') AS name,
+        COUNT(ptr.result_id)::int AS count
+      FROM patient_test_results ptr
+      LEFT JOIN test_types tt ON tt.test_type_id = ptr.test_type_id
+      GROUP BY tt.test_type_id, tt.name
+      ORDER BY count DESC
+      LIMIT 10
+      `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+    sequelize.query(
+      `
+      SELECT 
+        TO_CHAR(DATE_TRUNC('month', test_date), 'Mon YYYY') AS name,
+        COUNT(history_id)::int AS count
+      FROM test_histories
+      GROUP BY DATE_TRUNC('month', test_date)
+      ORDER BY DATE_TRUNC('month', test_date) ASC
+      LIMIT 12
+      `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+    sequelize.query(
+      `
+  WITH test_counts AS (
+    SELECT
+      th.org_id,
+      tt.name AS test_name,
+      COUNT(ptr.result_id)::int AS test_count
+    FROM patient_test_results ptr
+    JOIN test_histories th ON th.history_id = ptr.history_id
+    JOIN test_types tt ON tt.test_type_id = ptr.test_type_id
+    GROUP BY th.org_id, tt.name
+  ),
+  org_counts AS (
+    SELECT
+      org_id,
+      SUM(test_count)::int AS count
+    FROM test_counts
+    GROUP BY org_id
+  )
+  SELECT
+    COALESCE(o.org_name, 'Unknown') AS name,
+    COALESCE(oc.count, 0)::int AS count,
+    COALESCE(
+      json_agg(
+        json_build_object(
+          'test_name', tc.test_name,
+          'test_count', tc.test_count
+        )
+        ORDER BY tc.test_count DESC
+      ) FILTER (WHERE tc.test_name IS NOT NULL),
+      '[]'
+    ) AS tests
+  FROM org_counts oc
+  LEFT JOIN organizations o ON o.org_id = oc.org_id
+  LEFT JOIN test_counts tc ON tc.org_id = oc.org_id
+  GROUP BY o.org_id, o.org_name, oc.count
+  ORDER BY oc.count DESC
+  LIMIT 10
+  `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+    sequelize.query(
+      `
+      SELECT
+        COALESCE(o.org_name, 'Unknown') AS name,
+        COUNT(p.patient_id)::int AS count
+      FROM patients p
+      LEFT JOIN organizations o ON o.org_id = p.org_id
+      GROUP BY o.org_id, o.org_name
+      ORDER BY count DESC
+      LIMIT 10
+      `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+    sequelize.query(
+      `
+      SELECT
+        COALESCE(tt.category, 'Uncategorized') AS name,
+        COUNT(ptr.result_id)::int AS count
+      FROM patient_test_results ptr
+      LEFT JOIN test_types tt ON tt.test_type_id = ptr.test_type_id
+      GROUP BY tt.category
+      ORDER BY count DESC
+      LIMIT 10
+      `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+    sequelize.query(
+      `
+      SELECT 
+        COALESCE(u.name, 'Unknown') AS name,
+        COUNT(th.history_id)::int AS count
+      FROM test_histories th
+      LEFT JOIN users u ON u.user_id = th.entered_by_user_id
+      GROUP BY u.user_id, u.name
+      ORDER BY count DESC
+      LIMIT 10
+      `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+    sequelize.query(
+      `
+      SELECT
+        COALESCE(status::text, 'UNKNOWN') AS name,
+        COUNT(history_id)::int AS count
+      FROM test_histories
+      GROUP BY status::text
+      ORDER BY count DESC
+      `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+    sequelize.query(
+      `
+      SELECT
+        COALESCE(gender::text, 'Unknown') AS name,
+        COUNT(patient_id)::int AS count
+      FROM patients
+      GROUP BY gender::text
+      ORDER BY count DESC
+      `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
+  ]);
+
+  return {
+    mostUsedDevices,
+    mostPerformedTests,
+    monthlyTestTrend,
+    organizationActivity,
+    organizationPatients,
+    testCategoryBreakdown,
+    topTechnicians,
+    testCompletionRate,
+    genderAnalysis,
+  };
+}
+
+export async function createUartTestResult({ patient_id, test_name, value_num, method_used, entered_by_user_id, department_id, org_id }) {
   return sequelize.transaction(async (t) => {
     const created = [];
 
@@ -929,25 +1227,25 @@ export async function createUartTestResults({ entries, entered_by_user_id, depar
       `, { replacements: { org_id, name: test_name }, type: sequelize.QueryTypes.SELECT, transaction: t });
       if (!testType) throw new Error(`Test type "${test_name}" not found in org plan`);
 
-      const history = await TestHistory.create({
-        history_id:         randomUUID(),
-        patient_id,
-        org_id,
-        department_id:      department_id || null,
-        entered_by_user_id,
-        test_date:          new Date(),
-        status:             "COMPLETED",
-      }, { transaction: t });
+    const history = await TestHistory.create({
+      history_id: randomUUID(),
+      patient_id,
+      org_id,
+      department_id: department_id || null,
+      entered_by_user_id,
+      test_date: new Date(),
+      status: "COMPLETED",
+    }, { transaction: t });
 
-      await PatientTestResults.create({
-        result_id:    randomUUID(),
-        history_id:   history.history_id,
-        patient_id,
-        org_id,
-        test_type_id: testType.test_type_id,
-        value_num:    value_num ?? null,
-        method_used:  method_used || null,
-      }, { transaction: t });
+    await PatientTestResults.create({
+      result_id: randomUUID(),
+      history_id: history.history_id,
+      patient_id,
+      org_id,
+      test_type_id: testType.test_type_id,
+      value_num,
+      method_used: method_used || null,
+    }, { transaction: t });
 
       created.push({ patient_id, history_id: history.history_id });
     }

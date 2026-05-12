@@ -41,6 +41,10 @@ export function checkIfAdmin() {
     return validatedRole([constants.ADMIN]);
 };
 
+export function checkIfSuperAdmin() {
+    return validatedRole([constants.SUPER_ADMIN]);
+};
+
 export const checkIfTechnician = validatedRole([constants.TECHNICIAN]);
 
 export function checkIfUser() {

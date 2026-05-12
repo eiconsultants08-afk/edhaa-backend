@@ -1,19 +1,8 @@
 export const environment = process.argv[2] || "dev";
-import { configuration,subscriptionConfiguration } from "./config.js";
+import { configuration } from "./config.js";
 
 export const config = configuration[environment];
 
-//ENVIRONMENT FOR CC AVENUE 
-//IF WORKING WITH REPORT OR WEBSITE OR ANY OTHER PAYMENT SERVICES MAKE CHANGES 
-// FOR WEBSITE 
-export let WebsiteCCAvenueEnv = 'prodreport'; // (stg - testing, prodreport - live) 
-
-// FOR VIYAT 
-export let ViyatCCAvenueEnv = 'prod'; // default 
-
-export const setSubscriptionEnv = (env) =>  ViyatCCAvenueEnv = env;
-
-export const subscriptionConfig = new Proxy({}, { get: (_, prop) => subscriptionConfiguration[ViyatCCAvenueEnv]?.[prop]});
 
 export const constants = {
   SUPER_ADMIN: "SUPER_ADMIN",

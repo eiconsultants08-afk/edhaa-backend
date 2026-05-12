@@ -1,6 +1,5 @@
 import { readFileSync } from "fs";
 import { secrets } from "./secret/secrets.js";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ListTablesCommand } from "@aws-sdk/client-dynamodb";
 
@@ -14,12 +13,7 @@ export const configuration = {
       host: secrets.HOST,
       port: 5432,
     },
-    // sshConfig: {
-    //   host: '3.108.55.74',
-    //   port: 22,
-    //   username: 'ubuntu',
-    //   privateKey: readFileSync('server/datacast_test.pem'),
-    // },
+
     jwt: {
       secret: secrets.SECRET,
       refreshsecret: secrets.REFRESH_SECRET,
@@ -65,49 +59,6 @@ export const configuration = {
   },
 };
 
-export const subscriptionConfiguration = {
-  dev: {
-    backendUrl: process.env.BACKEND_URL || "http://localhost:3030",
-    clientUrl: "http://localhost:3000",
-    workingKey: '04D4BAD6BE7A8CAAEFFFD0B3D08BDF35',
-    accessCode: 'ATGN05LG83AY51NGYA',
-    ccUrl: 'https://test.ccavenue.com'
-  },
-  stg: {
-    backendUrl: "https://testapi.weathercastsolutions.com",
-    clientUrl: "https://test.weathercastsolutions.com",
-    workingKey: 'F0BC1E60E5D3DE3EDD37B1912FA2F3A4',
-    accessCode: 'ATFN05LG83AY50NFYA',
-    ccUrl: 'https://test.ccavenue.com'
-  },
-  prod: {
-    backendUrl: "https://api.weathercastsolutions.com",
-    clientUrl: "https://viyat.weathercastsolutions.com",
-    workingKey: '3CD4D47E5129781F1E9222F95E7BCA24',
-    accessCode: 'AVSV89LE86CG68VSGC',
-    ccUrl: 'https://secure.ccavenue.com'
-  },
-  prodreport: {
-    backendUrl: "https://api.weathercastsolutions.com",
-    clientUrl: "https://www.weathercastsolutions.com",
-    workingKey: 'EF0DCD3270B227B1FF4C8341A99CA6B3',
-    accessCode: 'AVBS65MD46AU54SBUA',
-    ccUrl: 'https://secure.ccavenue.com'
-  },
-};
-
-export default async function createDynamoDBClient() {
-
-  const dynamoDBClient = new DynamoDBClient({
-    region: 'ap-south-1',
-    credentials: {
-      accessKeyId: secrets.AWS_ACCESS_KEY_ID,
-      secretAccessKey: secrets.AWS_SECRET_ACCESS_KEY,
-    },
-  });
-
-  return DynamoDBDocumentClient.from(dynamoDBClient);;
-}
 
 
 // export async function verifyDynamoDBConnection() {
