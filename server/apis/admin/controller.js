@@ -32,8 +32,7 @@ export async function getAllDevices(req, res) {
         if (admin.role !== "ADMIN") return failureResponse(res, 403, "Forbidden");
 
         // 4) Org/Dept must exist
-        if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
-        if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
+        if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");  
 
         // 5) Pagination
         const { limit, offset } = getPaginationInfo(rows, page);
@@ -41,7 +40,6 @@ export async function getAllDevices(req, res) {
         // 6) Conditions object (like your getAllUsers pattern)
         const conditions = {
             org_id: admin.org_id,
-            department_id: admin.department_id,
         };
 
         if (req.query.unassigned === "true") {
@@ -78,7 +76,6 @@ export async function getDeviceByDeviceId(req, res) {
         if (admin.role !== "ADMIN") return failureResponse(res, 403, "Forbidden");
 
         if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
-        if (!admin.department_id) return failureResponse(res, 403, "unknown department");
 
         // ✅ Single query by device_id (with joins + flat)
         const device = await getDeviceByIdFlat(device_id);
@@ -87,9 +84,6 @@ export async function getDeviceByDeviceId(req, res) {
         // ✅ Scope check (authorization)
         if (device.org_id !== admin.org_id)
             return failureResponse(res, 403, "Device not in your organization");
-
-        if (device.department_id !== admin.department_id)
-            return failureResponse(res, 403, "Device not in your department");
 
         return res.status(200).send({
             status: 200,
@@ -124,7 +118,7 @@ export async function getDevicesNotAssignToTechnician(req, res) {
         if (admin.role !== "ADMIN")
             return failureResponse(res, 403, "Forbidden");
 
-        if (!admin.org_id || !admin.department_id)
+        if (!admin.org_id)
             return failureResponse(res, 403, "Admin scope invalid");
 
         const { limit, offset } = getPaginationInfo(rows, page);
@@ -132,7 +126,6 @@ export async function getDevicesNotAssignToTechnician(req, res) {
         // ✅ Just extend conditions
         const conditions = {
             org_id: admin.org_id,
-            department_id: admin.department_id,
             assigned_to_user_id: null,   // 🔥 key addition
         };
 
@@ -175,7 +168,6 @@ export async function addTechnician(req, res) {
     if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
 
     if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
-    if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
 
     // ✅ 2) Whitelist body
     const raw = addData(req.body, constants.ADD_TECHNICIAN_ATTRIBUTES);
@@ -211,7 +203,7 @@ export async function addTechnician(req, res) {
       role: constants.TECHNICIAN,
       status: "INACTIVE",
       org_id: admin.org_id,
-      department_id: admin.department_id,
+      department_id: admin.department_id || null,
     };
 
     const created = await createTechnician(payload);
@@ -251,12 +243,10 @@ export async function assignDevice(req, res) {
     if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
     if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
     if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
-    if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
 
     const device = await getDeviceByIdFlat(device_id);
     if (!device) return failureResponse(res, 404, "Device not found");
     if (device.org_id !== admin.org_id) return failureResponse(res, 403, "Device not in your organization");
-    if (device.department_id !== admin.department_id) return failureResponse(res, 403, "Device not in your department");
 
     const { technician_id } = req.body;
 
@@ -266,7 +256,6 @@ export async function assignDevice(req, res) {
       if (tech.role !== constants.TECHNICIAN) return failureResponse(res, 400, "User is not a technician");
       if (tech.status === "REMOVED") return failureResponse(res, 400, "Technician has been removed from the organization");
       if (tech.org_id !== admin.org_id) return failureResponse(res, 403, "Technician not in your organization");
-      if (tech.department_id !== admin.department_id) return failureResponse(res, 403, "Technician not in your department");
     }
 
     const updateData = {
@@ -339,13 +328,11 @@ export async function getAllTechnicians(req, res) {
     if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
 
     if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
-    if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
 
     const { limit, offset } = getPaginationInfo(rows, page);
 
     const conditions = {
       org_id: admin.org_id,
-      department_id: admin.department_id,
       role: constants.TECHNICIAN,
     };
     // getTechnicians
@@ -370,7 +357,6 @@ export async function addDevice(req, res) {
     if (admin.status !== "ACTIVE") return failureResponse(res, 403, "User is not active");
     if (admin.role !== constants.ADMIN) return failureResponse(res, 403, "Forbidden");
     if (!admin.org_id) return failureResponse(res, 403, "Admin org not assigned");
-    if (!admin.department_id) return failureResponse(res, 403, "Admin department not assigned");
 
     const raw = addData(req.body, constants.ADD_DEVICE_ATTRIBUTES);
 
@@ -387,7 +373,7 @@ export async function addDevice(req, res) {
       model: raw.model,
       status: "ACTIVE",
       org_id: admin.org_id,
-      department_id: admin.department_id,
+      department_id: admin.department_id || null,
     });
 
     return res.status(201).send({

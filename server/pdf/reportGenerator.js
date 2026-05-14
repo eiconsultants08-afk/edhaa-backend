@@ -189,15 +189,16 @@ function sectionHead(doc, label, y) {
 function drawPatientInfo(doc, session, startY) {
   let y = sectionHead(doc, "PATIENT INFORMATION", startY) + 2;
 
-  const code = session.patient_id || "-";
+  const patientCode = session.patient_id || "-";
+  const sampleCode = "";
 
   const rows = [
     [
-      { label: "Sample ID", value: code },
+      { label: "Sample ID", value: sampleCode },
       { label: "Received & Reported Date", value: `${fmtDate(session.test_date)}  ${fmtTime()}` },
     ],
     [
-      { label: "Patient ID", value: code },
+      { label: "Patient ID", value: patientCode },
       { label: "Ref. By.", value: session.org_name || "-" },
     ],
     [
@@ -263,9 +264,9 @@ function drawPatientInfo(doc, session, startY) {
 function drawResultsTable(doc, results, startY, patientGender, colorResults = true) {
   let y = sectionHead(doc, "LABORATORY TEST RESULTS", startY) + 2;
 
-  // Column sequence: Test Name | Unit | Value | Range | Method — sum ≈ 515 = CW
-  const COLS = [140, 60, 85, 120, 110];
-  const HDRS = ["Test Name", "Unit", "Value", "Range", "Method"];
+  // Column sequence: Test Name | Value | Unit | Range | Method
+  const COLS = [140, 85, 60, 120, 110];
+  const HDRS = ["Test", "Observed Value", "Unit", "Biological Reference", "Method"];
   const RH = 28; // taller rows so wrapped method text stays within the cell
 
   // ── Header row ──────────────────────────────────────────────────────────────
@@ -313,14 +314,26 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
     cx += COLS[0];
 
     // Col 1 — Unit (centred)
-    doc.fillColor(GRAY).font("Helvetica").fontSize(9)
-      .text(unit || "-", cx + 5, y + 9,
+    // doc.fillColor(GRAY).font("Helvetica").fontSize(9)
+    //   .text(unit || "-", cx + 5, y + 9,
+    //     { width: COLS[1] - 10, align: "center", lineBreak: false });
+    // cx += COLS[1];
+
+    // // Col 2 — Value (centred, bold+colour when abnormal)
+    // doc.fillColor(resColor).font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
+    //   .text(rawVal, cx + 5, y + 9,
+    //     { width: COLS[2] - 10, align: "center", lineBreak: false });
+    // cx += COLS[2];
+
+    // Col 1 — Value
+    doc.fillColor(resColor).font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
+      .text(rawVal, cx + 5, y + 9,
         { width: COLS[1] - 10, align: "center", lineBreak: false });
     cx += COLS[1];
 
-    // Col 2 — Value (centred, bold+colour when abnormal)
-    doc.fillColor(resColor).font(isBold ? "Helvetica-Bold" : "Helvetica").fontSize(9)
-      .text(rawVal, cx + 5, y + 9,
+    // Col 2 — Unit
+    doc.fillColor(GRAY).font("Helvetica").fontSize(9)
+      .text(unit || "-", cx + 5, y + 9,
         { width: COLS[2] - 10, align: "center", lineBreak: false });
     cx += COLS[2];
 
@@ -438,7 +451,7 @@ export function generateBulkReportPdf(histories, meta = {}) {
       const results = h.results || [];
       const dateStr = fmtDate(h.test_date);
       const patientLabel = p.name
-        ? `${p.name}${p.patient_id ? " #" + p.patient_id : ""}`
+        ? `${p.patient_id}`
         : "-";
       const genderStr = (p.gender || "").charAt(0).toUpperCase() || "-";
 
@@ -467,19 +480,26 @@ export function generateBulkReportPdf(histories, meta = {}) {
         });
 
         rows.push({
-          dateStr, patientLabel, genderStr,
+          dateStr,
+          patientLabel,
+          genderStr,
+
           testName: tt.full_name
             ? `${tt.full_name} (${tt.name})`
             : (tt.name || "-"),
-          resDisplay, status: status || "-",
+
+          resultValue: rawVal,
+          resultUnit: unit || "-",
+
+          status: status || "-",
           methodStr,
         });
       }
     }
 
     // ── Layout ──────────────────────────────────────────────────────────────────
-    const COLS = [60, 115, 115, 78, 52, 95]; // Date | Patient | Test | Result | Status | Method = 515
-    const HDRS = ["Date", "Patient", "Test", "Result", "Status", "Method"];
+    const COLS = [55, 85, 110, 65, 55, 50, 95];// Date | Patient ID | Test | Result | Unit | Status | Method = 515
+    const HDRS = ["Date", "Patient ID", "Test", "Result", "Unit", "Status", "Method"];
     const RH = 24; // taller rows so wrapped method text stays within the cell
 
     const doc = new PDFDocument({ margin: 0, autoFirstPage: false, size: "A4" });
@@ -629,9 +649,10 @@ export function generateBulkReportPdf(histories, meta = {}) {
       // All text in bulk report uses plain black — no status colouring
       const cells = [
         { text: row.dateStr, color: BLACK, align: "center", wrap: false },
-        { text: row.patientLabel, color: BLACK, align: "left", wrap: false },
-        { text: row.testName, color: BLACK, align: "left", wrap: false },
-        { text: row.resDisplay, color: BLACK, align: "center", wrap: false },
+        { text: row.patientLabel, color: BLACK, align: "center", wrap: false },
+        { text: row.testName, color: BLACK, align: "center", wrap: false },
+        { text: row.resultValue, color: BLACK, align: "center", wrap: false },
+        { text: row.resultUnit, color: BLACK, align: "center", wrap: false },
         { text: row.status, color: BLACK, align: "center", wrap: false },
         { text: row.methodStr, color: GRAY, align: "center", wrap: true },
       ];

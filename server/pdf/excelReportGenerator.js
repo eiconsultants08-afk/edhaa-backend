@@ -202,7 +202,7 @@ export async function buildTestResultsXlsx(histories, meta = {}) {
 
     for (const r of results) {
       const tt        = r.testType || {};
-      const testName  = tt.name || "-";
+      const testName  = tt.full_name || tt.name || "-";
       const unit      = tt.unit || "-";
       const val       = r.value_text ?? (r.value_num != null ? Number(r.value_num) : "-");
       const status    = statusFor(r, gender);
