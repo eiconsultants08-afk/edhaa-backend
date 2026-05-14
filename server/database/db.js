@@ -14,6 +14,9 @@ import PatientTestResults from "./patient_test_results.js";
 import TestTypes from "./test_types.js";
 import TestHistory from "./test_history.js";
 
+import Plans from "./plans.js";
+import PlanTestTypes from "./plan_test_types.js";
+
 // Register all model associations
 import "./associations.js";
 
@@ -1020,7 +1023,7 @@ export async function getSuperAdminAnalytics() {
   WITH device_test_counts AS (
     SELECT
       TRIM(th.device_id) AS device_id,
-      tt.name AS test_name,
+      COALESCE(tt.full_name, tt.name) AS test_name,
       COUNT(ptr.result_id)::int AS test_count
     FROM patient_test_results ptr
     JOIN test_histories th
@@ -1028,7 +1031,7 @@ export async function getSuperAdminAnalytics() {
     JOIN test_types tt
       ON tt.test_type_id = ptr.test_type_id
     WHERE th.device_id IS NOT NULL
-    GROUP BY TRIM(th.device_id), tt.name
+    GROUP BY TRIM(th.device_id), tt.full_name, tt.name
   ),
   device_counts AS (
     SELECT
@@ -1092,12 +1095,12 @@ export async function getSuperAdminAnalytics() {
   WITH test_counts AS (
     SELECT
       th.org_id,
-      tt.name AS test_name,
+      COALESCE(tt.full_name, tt.name) AS test_name,
       COUNT(ptr.result_id)::int AS test_count
     FROM patient_test_results ptr
     JOIN test_histories th ON th.history_id = ptr.history_id
     JOIN test_types tt ON tt.test_type_id = ptr.test_type_id
-    GROUP BY th.org_id, tt.name
+    GROUP BY th.org_id, tt.full_name, tt.name
   ),
   org_counts AS (
     SELECT
@@ -1210,7 +1213,93 @@ export async function getSuperAdminAnalytics() {
   };
 }
 
-export async function createUartTestResult({ patient_id, test_name, value_num, method_used, entered_by_user_id, department_id, org_id }) {
+export async function getPlans(limit, offset) {
+  const options = {
+    limit,
+    order: [["created_at", "DESC"]],
+    raw: true,
+  };
+
+  if (offset > 0) options.offset = offset;
+
+  return Plans.findAndCountAll(options);
+}
+
+export async function getPlanById(plan_id) {
+  return Plans.findOne({
+    where: { plan_id },
+    raw: true,
+  });
+}
+
+export async function createPlan(data) {
+  return Plans.create(data);
+}
+
+export async function updatePlan(plan_id, data) {
+  const [updated] = await Plans.update(data, {
+    where: { plan_id },
+  });
+
+  if (!updated) return null;
+
+  return Plans.findOne({
+    where: { plan_id },
+    raw: true,
+  });
+}
+
+export async function replacePlanTestTypes(plan_id, test_type_ids = []) {
+  await PlanTestTypes.destroy({
+    where: { plan_id },
+  });
+
+  if (!Array.isArray(test_type_ids) || test_type_ids.length === 0) {
+    return [];
+  }
+
+  const rows = test_type_ids.map((test_type_id) => ({
+    plan_id,
+    test_type_id,
+  }));
+
+  return PlanTestTypes.bulkCreate(rows);
+}
+
+export async function getSuperAdminDevices(limit, offset) {
+  return Devices.findAndCountAll({
+    limit,
+    offset,
+    order: [["created_at", "DESC"]],
+    raw: true,
+  });
+}
+
+export async function getSuperAdminDeviceById(device_id) {
+  return Devices.findOne({
+    where: { device_id },
+    raw: true,
+  });
+}
+
+export async function createSuperAdminDevice(data) {
+  return Devices.create(data);
+}
+
+export async function updateSuperAdminDevice(device_id, data) {
+  const [updated] = await Devices.update(data, {
+    where: { device_id },
+  });
+
+  if (!updated) return null;
+
+  return Devices.findOne({
+    where: { device_id },
+    raw: true,
+  });
+}
+
+export async function createUartTestResults({ patient_id, test_name, value_num, method_used, entered_by_user_id, department_id, org_id }) {
   return sequelize.transaction(async (t) => {
     const created = [];
 

@@ -20,6 +20,18 @@ import {
   getTestByIdSuperAdmin,
   updateTestSuperAdmin,
   getSuperAdminAnalyticsData,
+  getAllPlansSuperAdmin,
+  getPlanByIdSuperAdmin,
+  addPlanSuperAdmin,
+  updatePlanSuperAdmin,
+  getAllAdminsSuperAdmin,
+  getAdminByIdSuperAdmin,
+  addAdminSuperAdmin,
+  updateAdminSuperAdmin,
+  getAllDevicesSuperAdmin,
+  getDeviceByIdSuperAdmin,
+  addDeviceSuperAdmin,
+  updateDeviceSuperAdmin,
 } from "./controller.js";
 
 // Dashboard
@@ -33,6 +45,15 @@ router.get("/organization/:org_id", checkAuthorization, checkIfSuperAdmin(), get
 router.post("/add/organization", checkAuthorization, checkIfSuperAdmin(), addOrganization);
 
 router.put("/organization/:org_id", checkAuthorization, checkIfSuperAdmin(), updateOrganization);
+
+// Admins
+router.get("/admins/:rows/:page", checkAuthorization, checkIfSuperAdmin(), getAllAdminsSuperAdmin);
+
+router.get("/admin/:admin_id", checkAuthorization, checkIfSuperAdmin(), getAdminByIdSuperAdmin);
+
+router.post("/add/admin", checkAuthorization, checkIfSuperAdmin(), addAdminSuperAdmin);
+
+router.put("/admin/:admin_id", checkAuthorization, checkIfSuperAdmin(), updateAdminSuperAdmin);
 
 // Technicians
 router.get("/technicians/:rows/:page", checkAuthorization, checkIfSuperAdmin(), getAllTechniciansSuperAdmin);
@@ -49,6 +70,24 @@ router.get("/tests/:rows/:page", checkAuthorization, checkIfSuperAdmin(), getAll
 router.get("/test/:test_type_id", checkAuthorization, checkIfSuperAdmin(), getTestByIdSuperAdmin);
 
 router.put("/test/:test_type_id", checkAuthorization, checkIfSuperAdmin(), updateTestSuperAdmin);
+
+// Devices
+router.get("/devices/:rows/:page", checkAuthorization, checkIfSuperAdmin(), getAllDevicesSuperAdmin);
+
+router.get("/device/:device_id", checkAuthorization, checkIfSuperAdmin(), getDeviceByIdSuperAdmin);
+
+router.post("/add/device", checkAuthorization, checkIfSuperAdmin(), addDeviceSuperAdmin);
+
+router.put("/device/:device_id", checkAuthorization, checkIfSuperAdmin(), updateDeviceSuperAdmin);
+
+// Plans
+router.get("/plans/:rows/:page", checkAuthorization, checkIfSuperAdmin(), getAllPlansSuperAdmin);
+
+router.get("/plan/:plan_id", checkAuthorization, checkIfSuperAdmin(), getPlanByIdSuperAdmin);
+
+router.post("/add/plan", checkAuthorization, checkIfSuperAdmin(), addPlanSuperAdmin);
+
+router.put("/plan/:plan_id", checkAuthorization, checkIfSuperAdmin(), updatePlanSuperAdmin);
 
 router.get("/analytics",checkAuthorization,checkIfSuperAdmin(),getSuperAdminAnalyticsData);
 

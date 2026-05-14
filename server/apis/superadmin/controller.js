@@ -20,6 +20,17 @@ import {
   getTestTypeById,
   updateTestType as updateTestTypeDb,
   getSuperAdminAnalytics,
+  getPlans,
+  getPlanById,
+  createPlan,
+  updatePlan as updatePlanDb,
+  replacePlanTestTypes,
+  getTestTypesByIds,
+  updateUser,
+  getSuperAdminDeviceById,
+  getSuperAdminDevices,
+  createSuperAdminDevice,
+  updateSuperAdminDevice,
 } from "../../database/db.js";
 
 async function getSuperAdminContext(user_id, res) {
@@ -41,6 +52,34 @@ async function getSuperAdminContext(user_id, res) {
   }
 
   return user;
+}
+
+function buildPlanConfigFromTests(selectedTests = []) {
+  const specimenTypes = new Set();
+  const bloodTests = [];
+  const urineTests = [];
+  const salivaTests = [];
+
+  selectedTests.forEach((test) => {
+    const specimen = test.specimen_type;
+    const testName = test.name;
+
+    if (!testName) return;
+
+    if (specimen) specimenTypes.add(specimen);
+
+    if (specimen === "Blood") bloodTests.push(testName);
+    if (specimen === "Urine") urineTests.push(testName);
+    if (specimen === "Saliva") salivaTests.push(testName);
+  });
+
+  return {
+    all_tests: false,
+    allowed_specimen_types: Array.from(specimenTypes),
+    allowed_blood_tests: bloodTests,
+    allowed_urine_tests: urineTests,
+    allowed_saliva_tests: salivaTests,
+  };
 }
 
 // Dashboard
@@ -573,6 +612,551 @@ export async function getSuperAdminAnalyticsData(req, res) {
     });
   } catch (err) {
     console.error("getSuperAdminAnalyticsData error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+
+export async function getAllPlansSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { rows, page } = req.params;
+
+    if (!rows || isNaN(Number(rows)) || Number(rows) <= 0) {
+      return failureResponse(res, 400, "Invalid rows");
+    }
+
+    if (!page || isNaN(Number(page)) || Number(page) <= 0) {
+      return failureResponse(res, 400, "Invalid page");
+    }
+
+    const { limit, offset } = getPaginationInfo(rows, page);
+    const result = await getPlans(limit, offset);
+
+    return res.status(200).send({
+      status: 200,
+      data: result,
+    });
+  } catch (err) {
+    console.error("getAllPlansSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function getPlanByIdSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { plan_id } = req.params;
+
+    if (!plan_id) {
+      return failureResponse(res, 400, "plan_id is required");
+    }
+
+    const plan = await getPlanById(plan_id);
+
+    if (!plan) {
+      return failureResponse(res, 404, "Plan not found");
+    }
+
+    return res.status(200).send({
+      status: 200,
+      data: plan,
+    });
+  } catch (err) {
+    console.error("getPlanByIdSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function addPlanSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const raw = req.body || {};
+
+    if (!raw.name) return failureResponse(res, 400, "name is required");
+    if (!raw.tier) return failureResponse(res, 400, "tier is required");
+    if (!raw.display_name) {
+      return failureResponse(res, 400, "display_name is required");
+    }
+
+    const testTypeIds = Array.isArray(raw.test_type_ids)
+      ? raw.test_type_ids
+      : [];
+
+    const selectedTests = testTypeIds.length
+      ? await getTestTypesByIds(testTypeIds)
+      : [];
+
+    const config = buildPlanConfigFromTests(selectedTests);
+
+    const created = await createPlan({
+      name: raw.name,
+      tier: raw.tier,
+      display_name: raw.display_name,
+      description: raw.description || null,
+      config,
+    });
+
+    await replacePlanTestTypes(created.plan_id, testTypeIds);
+
+    return res.status(201).send({
+      status: 201,
+      data: created,
+      message: "Plan created successfully",
+    });
+  } catch (err) {
+    console.error("addPlanSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: err.message || "Internal server error",
+    });
+  }
+}
+
+export async function updatePlanSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { plan_id } = req.params;
+
+    if (!plan_id) {
+      return failureResponse(res, 400, "plan_id is required");
+    }
+
+    const existingPlan = await getPlanById(plan_id);
+
+    if (!existingPlan) {
+      return failureResponse(res, 404, "Plan not found");
+    }
+
+    const raw = req.body || {};
+    const payload = {};
+
+    if (raw.name !== undefined) payload.name = raw.name;
+    if (raw.tier !== undefined) payload.tier = raw.tier;
+    if (raw.display_name !== undefined) payload.display_name = raw.display_name;
+    if (raw.description !== undefined) payload.description = raw.description;
+
+    if (Array.isArray(raw.test_type_ids)) {
+      const selectedTests = raw.test_type_ids.length
+        ? await getTestTypesByIds(raw.test_type_ids)
+        : [];
+
+      payload.config = buildPlanConfigFromTests(selectedTests);
+
+      await replacePlanTestTypes(plan_id, raw.test_type_ids);
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return failureResponse(res, 400, "No updatable fields provided");
+    }
+
+    const updated = await updatePlanDb(plan_id, payload);
+
+    return res.status(200).send({
+      status: 200,
+      data: updated,
+      message: "Plan updated successfully",
+    });
+  } catch (err) {
+    console.error("updatePlanSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: err.message || "Internal server error",
+    });
+  }
+}
+
+// Admins
+export async function getAllAdminsSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { rows, page } = req.params;
+
+    if (!rows || isNaN(Number(rows)) || Number(rows) <= 0) {
+      return failureResponse(res, 400, "Invalid rows");
+    }
+
+    if (!page || isNaN(Number(page)) || Number(page) <= 0) {
+      return failureResponse(res, 400, "Invalid page");
+    }
+
+    const { limit, offset } = getPaginationInfo(rows, page);
+
+    const result = await getUsers(limit, offset, {
+      role: constants.ADMIN,
+    });
+
+    return res.status(200).send({
+      status: 200,
+      data: result,
+    });
+  } catch (err) {
+    console.error("getAllAdminsSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function getAdminByIdSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { admin_id } = req.params;
+
+    if (!admin_id) {
+      return failureResponse(res, 400, "admin_id is required");
+    }
+
+    const admin = await getUserByCondition({
+      user_id: admin_id,
+    });
+
+    if (!admin) {
+      return failureResponse(res, 404, "Admin not found");
+    }
+
+    if (admin.role !== constants.ADMIN) {
+      return failureResponse(res, 400, "User is not an admin");
+    }
+
+    return res.status(200).send({
+      status: 200,
+      data: admin,
+    });
+  } catch (err) {
+    console.error("getAdminByIdSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function addAdminSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const raw = addData(req.body, [
+      "username",
+      "name",
+      "email",
+      "phone",
+      "password",
+      "org_id",
+      "status",
+    ]);
+
+    if (!raw.username) return failureResponse(res, 400, "username is required");
+    if (!raw.name) return failureResponse(res, 400, "name is required");
+    if (!raw.phone) return failureResponse(res, 400, "phone is required");
+    if (!raw.password) return failureResponse(res, 400, "password is required");
+    if (!raw.org_id) return failureResponse(res, 400, "org_id is required");
+
+    const organization = await getOrgById(raw.org_id);
+    if (!organization) return failureResponse(res, 404, "Organization not found");
+
+    const existingUsername = await getUserByCondition({ username: raw.username });
+    if (existingUsername) return failureResponse(res, 409, "Username already exists");
+
+    const existingPhone = await getUserByCondition({ phone: raw.phone });
+    if (existingPhone) return failureResponse(res, 409, "Phone already exists");
+
+    if (raw.email) {
+      const existingEmail = await getUserByCondition({ email: raw.email });
+      if (existingEmail) return failureResponse(res, 409, "Email already exists");
+    }
+
+    const password_hash = await hashPassword(raw.password);
+
+    const payload = {
+      username: raw.username,
+      name: raw.name,
+      email: raw.email || null,
+      phone: raw.phone || null,
+      password: password_hash,
+      role: constants.ADMIN,
+      status: raw.status || "INACTIVE",
+      org_id: raw.org_id,
+      department_id: null,
+    };
+
+    const created = await createTechnician(payload);
+
+    return res.status(201).send({
+      status: 201,
+      data: {
+        user_id: created.user_id,
+        username: created.username,
+        name: created.name,
+        email: created.email,
+        phone: created.phone,
+        role: created.role,
+        status: created.status,
+        org_id: created.org_id,
+        created_at: created.created_at,
+      },
+      message: "Admin created successfully",
+    });
+  } catch (err) {
+    console.error("addAdminSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function updateAdminSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { admin_id } = req.params;
+
+    if (!admin_id) {
+      return failureResponse(res, 400, "admin_id is required");
+    }
+
+    const admin = await getUserByCondition({
+      user_id: admin_id,
+    });
+
+    if (!admin) {
+      return failureResponse(res, 404, "Admin not found");
+    }
+
+    if (admin.role !== constants.ADMIN) {
+      return failureResponse(res, 400, "User is not an admin");
+    }
+
+    const raw = req.body || {};
+    const payload = {};
+
+    if (raw.name !== undefined) payload.name = raw.name;
+    if (raw.email !== undefined) payload.email = raw.email;
+    if (raw.phone !== undefined) payload.phone = raw.phone;
+    if (raw.status !== undefined) payload.status = raw.status;
+    if (raw.org_id !== undefined) payload.org_id = raw.org_id;
+
+    if (raw.password) {
+      payload.password = await hashPassword(raw.password);
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return failureResponse(res, 400, "No updatable fields provided");
+    }
+
+    const updated = await updateUser(admin_id, payload);
+
+    return res.status(200).send({
+      status: 200,
+      data: updated,
+      message: "Admin updated successfully",
+    });
+  } catch (err) {
+    console.error("updateAdminSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+// Devices
+export async function getAllDevicesSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { rows, page } = req.params;
+
+    if (!rows || isNaN(Number(rows)) || Number(rows) <= 0) {
+      return failureResponse(res, 400, "Invalid rows");
+    }
+
+    if (!page || isNaN(Number(page)) || Number(page) <= 0) {
+      return failureResponse(res, 400, "Invalid page");
+    }
+
+    const { limit, offset } = getPaginationInfo(rows, page);
+    const result = await getSuperAdminDevices(limit, offset);
+
+    return res.status(200).send({
+      status: 200,
+      data: result,
+    });
+  } catch (err) {
+    console.error("getAllDevicesSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function getDeviceByIdSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { device_id } = req.params;
+
+    if (!device_id) {
+      return failureResponse(res, 400, "device_id is required");
+    }
+
+    const device = await getSuperAdminDeviceById(device_id);
+
+    if (!device) {
+      return failureResponse(res, 404, "Device not found");
+    }
+
+    return res.status(200).send({
+      status: 200,
+      data: device,
+    });
+  } catch (err) {
+    console.error("getDeviceByIdSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function addDeviceSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const raw = req.body || {};
+
+    if (!raw.device_id) {
+      return failureResponse(res, 400, "device_id is required");
+    }
+
+    if (!raw.serial_no) {
+      return failureResponse(res, 400, "serial_no is required");
+    }
+
+    if (!raw.model) {
+      return failureResponse(res, 400, "model is required");
+    }
+
+    if (!raw.org_id) {
+      return failureResponse(res, 400, "org_id is required");
+    }
+
+    const organization = await getOrgById(raw.org_id);
+    if (!organization) {
+      return failureResponse(res, 404, "Organization not found");
+    }
+
+    const existingDevice = await getSuperAdminDeviceById(raw.device_id);
+    if (existingDevice) {
+      return failureResponse(res, 409, "Device already exists");
+    }
+
+    const payload = {
+      device_id: raw.device_id,
+      org_id: raw.org_id,
+      serial_no: raw.serial_no,
+      model: raw.model,
+      status: raw.status || "ACTIVE",
+      firmware_version: raw.firmware_version || null,
+      assigned_to_user_id: raw.assigned_to_user_id || null,
+      assigned_by_user_id: req.user_id,
+      assigned_at: raw.assigned_to_user_id ? new Date() : null,
+      department_id: raw.department_id || null,
+    };
+
+    const created = await createSuperAdminDevice(payload);
+
+    return res.status(201).send({
+      status: 201,
+      data: created,
+      message: "Device created successfully",
+    });
+  } catch (err) {
+    console.error("addDeviceSuperAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function updateDeviceSuperAdmin(req, res) {
+  try {
+    const superAdmin = await getSuperAdminContext(req.user_id, res);
+    if (!superAdmin) return;
+
+    const { device_id } = req.params;
+
+    if (!device_id) {
+      return failureResponse(res, 400, "device_id is required");
+    }
+
+    const device = await getSuperAdminDeviceById(device_id);
+
+    if (!device) {
+      return failureResponse(res, 404, "Device not found");
+    }
+
+    const raw = req.body || {};
+    const payload = {};
+
+    if (raw.org_id !== undefined) payload.org_id = raw.org_id;
+    if (raw.serial_no !== undefined) payload.serial_no = raw.serial_no;
+    if (raw.model !== undefined) payload.model = raw.model;
+    if (raw.status !== undefined) payload.status = raw.status;
+    if (raw.firmware_version !== undefined) {
+      payload.firmware_version = raw.firmware_version;
+    }
+    if (raw.department_id !== undefined) payload.department_id = raw.department_id;
+
+    if (raw.assigned_to_user_id !== undefined) {
+      payload.assigned_to_user_id = raw.assigned_to_user_id || null;
+      payload.assigned_by_user_id = req.user_id;
+      payload.assigned_at = raw.assigned_to_user_id ? new Date() : null;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return failureResponse(res, 400, "No updatable fields provided");
+    }
+
+    const updated = await updateSuperAdminDevice(device_id, payload);
+
+    return res.status(200).send({
+      status: 200,
+      data: updated,
+      message: "Device updated successfully",
+    });
+  } catch (err) {
+    console.error("updateDeviceSuperAdmin error:", err);
     return res.status(500).send({
       status: 500,
       message: "Internal server error",
