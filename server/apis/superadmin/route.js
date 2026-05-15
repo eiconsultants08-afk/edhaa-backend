@@ -32,6 +32,7 @@ import {
   getDeviceByIdSuperAdmin,
   addDeviceSuperAdmin,
   updateDeviceSuperAdmin,
+  addTestSuperAdmin,
 } from "./controller.js";
 
 // Dashboard
@@ -68,6 +69,8 @@ router.put("/technician/:technician_id", checkAuthorization, checkIfSuperAdmin()
 router.get("/tests/:rows/:page", checkAuthorization, checkIfSuperAdmin(), getAllTestsSuperAdmin);
 
 router.get("/test/:test_type_id", checkAuthorization, checkIfSuperAdmin(), getTestByIdSuperAdmin);
+
+router.post("/add/test", checkAuthorization, checkIfSuperAdmin(), addTestSuperAdmin);
 
 router.put("/test/:test_type_id", checkAuthorization, checkIfSuperAdmin(), updateTestSuperAdmin);
 

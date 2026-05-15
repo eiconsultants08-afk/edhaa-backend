@@ -1266,6 +1266,10 @@ export async function replacePlanTestTypes(plan_id, test_type_ids = []) {
   return PlanTestTypes.bulkCreate(rows);
 }
 
+export async function createTestType(data) {
+  return await TestTypes.create(data);
+}
+
 export async function getSuperAdminDevices(limit, offset) {
   return Devices.findAndCountAll({
     limit,

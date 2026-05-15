@@ -31,6 +31,7 @@ import {
   getSuperAdminDevices,
   createSuperAdminDevice,
   updateSuperAdminDevice,
+  createTestType,
 } from "../../database/db.js";
 
 async function getSuperAdminContext(user_id, res) {
@@ -1158,6 +1159,81 @@ export async function updateDeviceSuperAdmin(req, res) {
   } catch (err) {
     console.error("updateDeviceSuperAdmin error:", err);
     return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function addTestSuperAdmin(req, res) {
+  try {
+    const {
+      name,
+      full_name,
+      unit,
+      method,
+      normal_min,
+      normal_max,
+      male_min,
+      male_max,
+      female_min,
+      female_max,
+      category,
+      reference_text,
+      critical_low,
+      critical_high,
+      is_qualitative,
+      specimen_type,
+    } = req.body;
+
+    if (!name || name.trim() === "") {
+      return failureResponse(res, 400, "Short name is required");
+    }
+
+    if (!unit || unit.trim() === "") {
+      return failureResponse(res, 400, "Unit is required");
+    }
+
+    const created = await createTestType({
+      name: name.trim(),
+      full_name: full_name || null,
+      unit: unit.trim(),
+      method: method || null,
+
+      normal_min: normal_min === "" ? null : normal_min,
+      normal_max: normal_max === "" ? null : normal_max,
+
+      male_min: male_min === "" ? null : male_min,
+      male_max: male_max === "" ? null : male_max,
+
+      female_min: female_min === "" ? null : female_min,
+      female_max: female_max === "" ? null : female_max,
+
+      category: category || null,
+      reference_text: reference_text || null,
+
+      critical_low: critical_low === "" ? null : critical_low,
+      critical_high: critical_high === "" ? null : critical_high,
+
+      is_qualitative: is_qualitative === true,
+      specimen_type: specimen_type || null,
+    });
+
+    return res.status(201).send({
+      success: true,
+      status: 201,
+      data: created,
+      message: "Test created successfully",
+    });
+  } catch (err) {
+    console.error("addTestSuperAdmin error:", err);
+
+    if (err?.name === "SequelizeUniqueConstraintError") {
+      return failureResponse(res, 409, "Test short name already exists");
+    }
+
+    return res.status(500).send({
+      success: false,
       status: 500,
       message: "Internal server error",
     });
