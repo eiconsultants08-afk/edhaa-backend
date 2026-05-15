@@ -33,6 +33,7 @@ import {
   addDeviceSuperAdmin,
   updateDeviceSuperAdmin,
   addTestSuperAdmin,
+  deleteOrganization,
 } from "./controller.js";
 
 // Dashboard
@@ -46,6 +47,8 @@ router.get("/organization/:org_id", checkAuthorization, checkIfSuperAdmin(), get
 router.post("/add/organization", checkAuthorization, checkIfSuperAdmin(), addOrganization);
 
 router.put("/organization/:org_id", checkAuthorization, checkIfSuperAdmin(), updateOrganization);
+
+router.delete("/organization/:org_id",checkAuthorization,checkIfSuperAdmin(),deleteOrganization);
 
 // Admins
 router.get("/admins/:rows/:page", checkAuthorization, checkIfSuperAdmin(), getAllAdminsSuperAdmin);

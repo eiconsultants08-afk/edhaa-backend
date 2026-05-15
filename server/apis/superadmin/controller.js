@@ -33,6 +33,7 @@ import {
   updateSuperAdminDevice,
   createTestType,
 } from "../../database/db.js";
+import sequelize from "../../database/connectdb.js";
 
 async function getSuperAdminContext(user_id, res) {
   const user = await getUserByCondition({ user_id });
@@ -1239,3 +1240,115 @@ export async function addTestSuperAdmin(req, res) {
     });
   }
 }
+
+export const deleteOrganization = async (req, res) => {
+  const { org_id } = req.params;
+
+  const transaction = await sequelize.transaction();
+
+  try {
+
+    const [patientResults] = await sequelize.query(
+      `
+      DELETE FROM patient_test_results
+      WHERE history_id IN (
+        SELECT history_id
+        FROM test_histories
+        WHERE org_id = :org_id
+      )
+      RETURNING result_id
+      `,
+      {
+        replacements: { org_id },
+        transaction,
+      }
+    );
+
+    const [histories] = await sequelize.query(
+      `
+      DELETE FROM test_histories
+      WHERE org_id = :org_id
+      RETURNING history_id
+      `,
+      {
+        replacements: { org_id },
+        transaction,
+      }
+    );
+
+    const [patients] = await sequelize.query(
+      `
+      DELETE FROM patients
+      WHERE org_id = :org_id
+      RETURNING patient_id
+      `,
+      {
+        replacements: { org_id },
+        transaction,
+      }
+    );
+
+    const [devices] = await sequelize.query(
+      `
+      DELETE FROM devices
+      WHERE org_id = :org_id
+      RETURNING device_id
+      `,
+      {
+        replacements: { org_id },
+        transaction,
+      }
+    );
+
+    const [tokens] = await sequelize.query(
+      `
+      DELETE FROM tokens
+      WHERE org_id = :org_id
+      RETURNING id
+      `,
+      {
+        replacements: { org_id },
+        transaction,
+      }
+    );
+
+    const [users] = await sequelize.query(
+      `
+      DELETE FROM users
+      WHERE org_id = :org_id
+      RETURNING user_id
+      `,
+      {
+        replacements: { org_id },
+        transaction,
+      }
+    );
+
+    const [organization] = await sequelize.query(
+      `
+      DELETE FROM organizations
+      WHERE org_id = :org_id
+      RETURNING org_id, org_name
+      `,
+      {
+        replacements: { org_id },
+        transaction,
+      }
+    );
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: "Organization deleted successfully",
+    });
+  } catch (error) {
+    await transaction.rollback();
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete organization",
+      error: error.message,
+    });
+  }
+};
