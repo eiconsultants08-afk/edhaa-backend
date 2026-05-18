@@ -41,7 +41,8 @@ ADD_PATIENT_ATTRIBUTES: [
   "dob",
   "address",
   "phone",
-  "email"
+  "email",
+  "sample_id"
 ],
 
 UPDATE_PATIENT_ATTRIBUTES: [

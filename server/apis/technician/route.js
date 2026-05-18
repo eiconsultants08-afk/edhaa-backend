@@ -23,6 +23,9 @@ import {
   submitUartResult,
   submitUartSessionComplete,
   saveUartResult,
+  updatePatientSampleId,
+  getTodayPatientReport,
+  getPatientRangeReport,
 } from './controller.js';
 
 router.get("/patients/:rows/:page?", checkAuthorization, checkIfTechnician, getAllPatients);
@@ -44,10 +47,13 @@ router.post("/session/:history_id/results", checkAuthorization, checkIfTechnicia
 // Technicians cannot edit patient records — blocked at controller level
 // router.put("/patient/:patient_id", ...)
 router.put("/test/:result_id", checkAuthorization, checkIfTechnician, updateTestResult);
+router.put("/patient/:patient_id/sample-id",checkAuthorization,checkIfTechnician,updatePatientSampleId);
 
 // Reports (CSV + PDF, date range required)
 router.get("/reports/csv", checkAuthorization, checkIfTechnician, generateCsvReportTechnician);
 router.get("/reports/pdf", checkAuthorization, checkIfTechnician, generatePdfReportTechnician);
+router.get("/patient/:patient_id/today-report",checkAuthorization,checkIfTechnician,getTodayPatientReport);
+router.get("/patient/:patient_id/range-report",checkAuthorization,checkIfTechnician,getPatientRangeReport);
 
 // UART result ingestion
 router.post("/uart/result",   checkAuthorization, checkIfTechnician, submitUartResult);

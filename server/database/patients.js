@@ -20,6 +20,11 @@ const Patients = sequelize.define(
 
     name: { type: DataTypes.TEXT, allowNull: false },
 
+    sample_id: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+
     gender: {
       type: DataTypes.ENUM("MALE", "FEMALE", "OTHER"),
       allowNull: true,

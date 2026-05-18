@@ -190,7 +190,7 @@ function drawPatientInfo(doc, session, startY) {
   let y = sectionHead(doc, "PATIENT INFORMATION", startY) + 2;
 
   const patientCode = session.patient_id || "-";
-  const sampleCode = "";
+  const sampleCode = session.sample_id || "-";
 
   const rows = [
     [
@@ -304,10 +304,9 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
 
     let cx = MARGIN;
 
-    // Col 0 — Test Name: show full_name with short name in parens, or just short name
-    const testLabel = r.test_full_name
-      ? `${r.test_full_name} (${r.test_type_name})`
-      : (r.test_type_name || "-");
+    // Col 0 — Test Name: show full_name 
+    const testLabel = r.test_full_name || r.test_type_name || "-";
+
     doc.fillColor(BLACK).font("Helvetica").fontSize(9)
       .text(testLabel, cx + 5, y + 9,
         { width: COLS[0] - 10, align: "left", lineBreak: false });
@@ -484,9 +483,7 @@ export function generateBulkReportPdf(histories, meta = {}) {
           patientLabel,
           genderStr,
 
-          testName: tt.full_name
-            ? `${tt.full_name} (${tt.name})`
-            : (tt.name || "-"),
+          testName: tt.full_name || tt.name || "-",
 
           resultValue: rawVal,
           resultUnit: unit || "-",
@@ -691,6 +688,7 @@ export function generateTestReportPdf(result) {
   const session = {
     org_name: result.org_name,
     department_name: result.department_name,
+    sample_id: result.sample_id,
     patient_name: result.patient_name,
     patient_gender: result.patient_gender,
     patient_dob: result.patient_dob,
@@ -723,4 +721,76 @@ export function generateTestReportPdf(result) {
     }],
   };
   return generateSessionReportPdf(session);
+}
+
+
+export function generateTodayPatientReportPdf({ patient, sessions, orgName }) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      margin: 0,
+      autoFirstPage: false,
+      size: "A4",
+    });
+
+    const buffers = [];
+
+    doc.on("data", (b) => buffers.push(b));
+    doc.on("end", () => resolve(Buffer.concat(buffers)));
+    doc.on("error", reject);
+
+    doc.addPage();
+
+    let y = drawHeader(doc);
+
+    const todaySession = {
+      patient_id: patient.patient_id,
+      sample_id: patient.sample_id || "-",
+      org_name: patient.org_name || orgName || "-",
+      test_date: new Date(),
+    };
+
+    y = drawPatientInfo(doc, todaySession, y);
+
+    y += 4;
+
+    const allResults = [];
+
+    sessions.forEach((session) => {
+      (session.results || []).forEach((result) => {
+        const tt = result.testType || {};
+
+        allResults.push({
+          ...result,
+          test_type_name: tt.name,
+          test_full_name: tt.full_name,
+          test_type_unit: tt.unit,
+          normal_min: tt.normal_min,
+          normal_max: tt.normal_max,
+          male_min: tt.male_min,
+          male_max: tt.male_max,
+          female_min: tt.female_min,
+          female_max: tt.female_max,
+          reference_text: tt.reference_text,
+          critical_low: tt.critical_low,
+          critical_high: tt.critical_high,
+          is_qualitative: tt.is_qualitative,
+          method: tt.method,
+          method_options: tt.method_options,
+        });
+      });
+    });
+
+    y = drawResultsTable(
+      doc,
+      allResults,
+      y,
+      patient.gender,
+      true
+    );
+
+    drawFooter(doc, y);
+    stampPageNum(doc, 1, 1);
+
+    doc.end();
+  });
 }

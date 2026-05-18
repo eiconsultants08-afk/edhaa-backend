@@ -27,11 +27,12 @@ import {
 import { addData, failureResponse, getPaginationInfo } from "../../utils.js";
 import { buildTestResultsXlsx } from "../../pdf/excelReportGenerator.js";
 import moment from "moment-timezone";
-import { generateTestReportPdf, generateSessionReportPdf, generateBulkReportPdf } from "../../pdf/reportGenerator.js";
+import { generateTestReportPdf, generateSessionReportPdf, generateBulkReportPdf, generateTodayPatientReportPdf } from "../../pdf/reportGenerator.js";
 import sequelize from "../../database/connectdb.js";
 import TestHistory from "../../database/test_history.js";
 import PatientTestResults from "../../database/patient_test_results.js";
 import TestTypes from "../../database/test_types.js";
+import { Op } from "sequelize";
 
 export async function getAllPatients(req, res) {
   try {
@@ -207,6 +208,227 @@ export async function addPatient(req, res) {
     });
   } catch (err) {
     console.error("addPatient error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function updatePatientSampleId(req, res) {
+  try {
+    const { user_id } = req;
+    const { patient_id } = req.params;
+    const { sample_id } = req.body || {};
+
+    if (!user_id) return failureResponse(res, 401, "Unauthorized");
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+
+    const technician = await getUserByCondition({ user_id });
+
+    if (!technician) return failureResponse(res, 404, "User not found");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
+
+    const patient = await getPatientByIdFlat({ patient_id });
+
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+
+    if (patient.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
+
+    const updated = await updatePatient(patient_id, {
+      sample_id: sample_id ? String(sample_id).trim() : null,
+    });
+
+    return res.status(200).send({
+      status: 200,
+      data: updated,
+      message: "Sample ID updated successfully",
+    });
+  } catch (err) {
+    console.error("updatePatientSampleId error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+
+export async function getTodayPatientReport(req, res) {
+  try {
+    const { user_id } = req;
+    const { patient_id } = req.params;
+
+    if (!user_id) return failureResponse(res, 401, "Unauthorized");
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+
+    const technician = await getUserByCondition({ user_id });
+
+    if (!technician) return failureResponse(res, 404, "User not found");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
+
+    const patient = await getPatientByIdFlat({ patient_id });
+
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+
+    if (patient.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
+
+    const todayStart = moment().tz("Asia/Kolkata").startOf("day").toDate();
+    const todayEnd = moment().tz("Asia/Kolkata").endOf("day").toDate();
+
+    const sessions = await TestHistory.findAll({
+      where: {
+        patient_id,
+        org_id: technician.org_id,
+        status: "COMPLETED",
+        // test_date: {
+        //   [sequelize.Sequelize.Op.between]: [todayStart, todayEnd],
+        // },
+        test_date: {
+          [Op.between]: [todayStart, todayEnd],
+        },
+      },
+      order: [["test_date", "ASC"]],
+      include: [
+        {
+          model: PatientTestResults,
+          as: "results",
+          required: false,
+          include: [
+            {
+              model: TestTypes,
+              as: "testType",
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!sessions.length) {
+      return failureResponse(res, 404, "No completed tests found for today");
+    }
+
+    const plainSessions = sessions.map((s) => s.get({ plain: true }));
+
+    const pdfBuffer = await generateTodayPatientReportPdf({
+      patient,
+      sessions: plainSessions,
+      orgName: patient.org_name || "EDHAA Diagnostic",
+      technicianName: technician.name || technician.username || "",
+    });
+
+    const pdf_base64 = pdfBuffer.toString("base64");
+
+    return res.status(200).send({
+      status: 200,
+      data: {
+        pdf_base64,
+        filename: `${patient_id}_today_report.pdf`,
+      },
+      message: "Today report generated successfully",
+    });
+  } catch (err) {
+    console.error("getTodayPatientReport error:", err);
+    return res.status(500).send({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function getPatientRangeReport(req, res) {
+  try {
+    const { user_id } = req;
+    const { patient_id } = req.params;
+    const { fromDate, toDate } = req.query;
+
+    if (!user_id) return failureResponse(res, 401, "Unauthorized");
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
+    if (!fromDate || !toDate)
+      return failureResponse(res, 400, "fromDate and toDate required");
+
+    const technician = await getUserByCondition({ user_id });
+
+    if (!technician) return failureResponse(res, 404, "User not found");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
+
+    const patient = await getPatientByIdFlat({ patient_id });
+
+    if (!patient) return failureResponse(res, 404, "Patient not found");
+
+    if (patient.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
+
+    const startDate = moment.tz(fromDate, "Asia/Kolkata").toDate();
+    const endDate = moment.tz(toDate, "Asia/Kolkata").toDate();
+
+    const sessions = await TestHistory.findAll({
+      where: {
+        patient_id,
+        org_id: technician.org_id,
+        status: "COMPLETED",
+        test_date: {
+          [Op.between]: [startDate, endDate],
+        },
+      },
+      order: [["test_date", "ASC"]],
+      include: [
+        {
+          model: PatientTestResults,
+          as: "results",
+          required: false,
+          include: [
+            {
+              model: TestTypes,
+              as: "testType",
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!sessions.length) {
+      return failureResponse(
+        res,
+        404,
+        "No completed tests found for selected date range"
+      );
+    }
+
+    const plainSessions = sessions.map((s) => s.get({ plain: true }));
+
+    const pdfBuffer = await generateTodayPatientReportPdf({
+      patient,
+      sessions: plainSessions,
+      orgName: patient.org_name || "EDHAA Diagnostic",
+      technicianName: technician.name || technician.username || "",
+    });
+
+    const pdf_base64 = pdfBuffer.toString("base64");
+
+    return res.status(200).send({
+      status: 200,
+      data: {
+        pdf_base64,
+        filename: `${patient_id}_custom_report.pdf`,
+      },
+      message: "Custom report generated successfully",
+    });
+  } catch (err) {
+    console.error("getPatientRangeReport error:", err);
     return res.status(500).send({
       status: 500,
       message: "Internal server error",
