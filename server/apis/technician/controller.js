@@ -28,6 +28,10 @@ import { addData, failureResponse, getPaginationInfo } from "../../utils.js";
 import { buildTestResultsXlsx } from "../../pdf/excelReportGenerator.js";
 import moment from "moment-timezone";
 import { generateTestReportPdf, generateSessionReportPdf, generateBulkReportPdf } from "../../pdf/reportGenerator.js";
+import sequelize from "../../database/connectdb.js";
+import TestHistory from "../../database/test_history.js";
+import PatientTestResults from "../../database/patient_test_results.js";
+import TestTypes from "../../database/test_types.js";
 
 export async function getAllPatients(req, res) {
   try {
@@ -783,3 +787,129 @@ export async function submitUartSessionComplete(req, res) {
     return res.status(500).send({ status: 500, message: err.message || "Internal server error" });
   }
 }
+
+export const saveUartResult = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { patient_id, test, val, unit, raw } = req.body;
+
+    if (!patient_id || !test) {
+      await transaction.rollback();
+      return failureResponse(res, 400, "patient_id and test are required");
+    }
+
+    const technician = await getUserByCondition({ user_id: req.user_id || req.user?.user_id || req.user_id });
+
+    const patient = await getPatientByIdFlat({
+      patient_id: String(patient_id),
+    });
+
+    if (!patient) {
+      await transaction.rollback();
+      return failureResponse(res, 404, `Patient ${patient_id} not found`);
+    }
+
+    const history = await TestHistory.findOne({
+      where: {
+        patient_id: String(patient_id),
+        status: "PENDING",
+      },
+      order: [["created_at", "DESC"]],
+      transaction,
+    });
+
+    if (!history) {
+      await transaction.rollback();
+      return failureResponse(res, 400, "Please register test session first");
+    }
+
+    const testType = await TestTypes.findOne({
+      where: {
+        name: test,
+        org_id: history.org_id,
+      },
+      transaction,
+    });
+
+    if (!testType) {
+      await transaction.rollback();
+      return failureResponse(res, 404, `Test type not found for ${test}`);
+    }
+
+    const existingResult = await PatientTestResults.findOne({
+      where: {
+        history_id: history.history_id,
+        patient_id: String(patient_id),
+        test_type_id: testType.test_type_id,
+      },
+      transaction,
+    });
+
+    if (!existingResult) {
+      await transaction.rollback();
+      return failureResponse(
+        res,
+        400,
+        `${test} was not selected in registered test session`
+      );
+    }
+
+    if (
+      existingResult.value_num !== null ||
+      existingResult.value_text !== null
+    ) {
+      await transaction.rollback();
+      return failureResponse(
+        res,
+        409,
+        `${test} already has a saved value in this session`
+      );
+    }
+
+    const isNumeric =
+      val !== null &&
+      val !== undefined &&
+      val !== "" &&
+      !Number.isNaN(Number(val));
+
+    await PatientTestResults.update(
+      {
+        value_num: isNumeric ? Number(val) : null,
+        value_text: isNumeric ? null : String(val),
+        raw_value: raw ? String(raw) : null,
+        result_source: "UART",
+        synced_at: new Date(),
+        is_locked: true,
+        method_used: "UART Console",
+      },
+      {
+        where: {
+          result_id: existingResult.result_id,
+        },
+        transaction,
+      }
+    );
+
+    await transaction.commit();
+
+    return res.status(200).send({
+      status: 200,
+      data: {
+        history_id: history.history_id,
+        result_id: existingResult.result_id,
+      },
+      message: "UART result saved successfully",
+    });
+  } catch (error) {
+    await transaction.rollback();
+
+    console.error("Save UART result error:", error);
+
+    return res.status(500).send({
+      status: 500,
+      message: "Failed to save UART result",
+      error: error.message,
+    });
+  }
+};

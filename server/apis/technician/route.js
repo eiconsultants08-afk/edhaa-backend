@@ -22,6 +22,7 @@ import {
   generatePdfReportTechnician,
   submitUartResult,
   submitUartSessionComplete,
+  saveUartResult,
 } from './controller.js';
 
 router.get("/patients/:rows/:page?", checkAuthorization, checkIfTechnician, getAllPatients);
@@ -51,5 +52,7 @@ router.get("/reports/pdf", checkAuthorization, checkIfTechnician, generatePdfRep
 // UART result ingestion
 router.post("/uart/result",   checkAuthorization, checkIfTechnician, submitUartResult);
 router.post("/uart/complete", checkAuthorization, checkIfTechnician, submitUartSessionComplete);
+
+router.post("/uart/save-result",checkAuthorization,checkIfTechnician,saveUartResult);
 
 export default router;
