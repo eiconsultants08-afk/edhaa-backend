@@ -531,7 +531,14 @@ export async function completeTestSession(req, res) {
 
     // Status is driven entirely by the complete flag — never auto-completed
     const newStatus = complete === true ? "COMPLETED" : "PENDING";
-    const historyUpdate = { status: newStatus };
+    // const historyUpdate = { status: newStatus };
+    const historyUpdate = {
+      status: newStatus,
+    };
+
+    if (newStatus === "COMPLETED") {
+      historyUpdate.completed_at = new Date();
+    }
     if (notes !== undefined) historyUpdate.notes = notes;
     // Lock device on first save — cannot be changed once set
     if (device_id && !session.device_id) historyUpdate.device_id = device_id;

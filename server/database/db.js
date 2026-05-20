@@ -1018,6 +1018,8 @@ export async function getSuperAdminAnalytics() {
     topTechnicians,
     testCompletionRate,
     genderAnalysis,
+    avgTurnaroundByOrg,
+    patientTurnaround,
   ] = await Promise.all([
 
     sequelize.query(
@@ -1200,6 +1202,46 @@ export async function getSuperAdminAnalytics() {
       { type: sequelize.QueryTypes.SELECT }
     ),
 
+    sequelize.query(
+      `
+      SELECT
+        COALESCE(o.org_name, 'Unknown') AS name,
+        ROUND(
+          AVG(EXTRACT(EPOCH FROM (th.completed_at - th.created_at)) / 60)
+        )::int AS avg_minutes
+      FROM test_histories th
+      LEFT JOIN organizations o ON o.org_id = th.org_id
+      WHERE th.status = 'COMPLETED'
+        AND th.completed_at IS NOT NULL
+      GROUP BY o.org_id, o.org_name
+      ORDER BY avg_minutes DESC
+      LIMIT 10
+      `,
+          { type: sequelize.QueryTypes.SELECT }
+        ),
+
+        sequelize.query(
+          `
+      SELECT
+        p.patient_id,
+        p.name AS patient_name,
+        COALESCE(o.org_name, 'Unknown') AS org_name,
+        TO_CHAR(th.created_at, 'DD Mon YYYY, HH24:MI') AS registered_at,
+        TO_CHAR(th.completed_at, 'DD Mon YYYY, HH24:MI') AS completed_at,
+        ROUND(
+          EXTRACT(EPOCH FROM (th.completed_at - th.created_at)) / 60
+        )::int AS turnaround_minutes
+      FROM test_histories th
+      JOIN patients p ON p.patient_id = th.patient_id
+      LEFT JOIN organizations o ON o.org_id = th.org_id
+      WHERE th.status = 'COMPLETED'
+        AND th.completed_at IS NOT NULL
+      ORDER BY th.completed_at DESC
+      LIMIT 20
+  `,
+      { type: sequelize.QueryTypes.SELECT }
+    ),
+
   ]);
 
   return {
@@ -1212,6 +1254,8 @@ export async function getSuperAdminAnalytics() {
     topTechnicians,
     testCompletionRate,
     genderAnalysis,
+    avgTurnaroundByOrg,
+    patientTurnaround,
   };
 }
 

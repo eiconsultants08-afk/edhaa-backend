@@ -53,6 +53,10 @@ const TestHistory = sequelize.define(
       allowNull: false,
       defaultValue: "PENDING",
     },
+    completed_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     timestamps: true,
