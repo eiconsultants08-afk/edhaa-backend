@@ -27,7 +27,7 @@ router.get("/session/:history_id/report", checkAuthorization, checkIfAdmin(), ge
 router.get("/analytics/overview",            checkAuthorization, checkIfAdmin(), getAnalyticsOverviewAdmin);
 router.get("/analytics/charts",              checkAuthorization, checkIfAdmin(), getAnalyticsChartsAdmin);
 router.get("/analytics/test-type-sessions",  checkAuthorization, checkIfAdmin(), getTestTypeSessionsAdmin);
-router.get("/analytics/tat",checkAuthorization,checkIfAdmin(),getTatAnalyticsAdmin);
+router.get("/analytics/tat",                 checkAuthorization,checkIfAdmin(),getTatAnalyticsAdmin);
 
 // Admin test sessions (admin performs tests like a technician)
 router.get("/test-types",                          checkAuthorization, checkIfAdmin(), getTestTypesAdmin);

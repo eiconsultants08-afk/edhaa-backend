@@ -209,24 +209,20 @@ function drawPatientInfo(doc, session, startY) {
   const reportedDate =
     `${fmtDate(session.test_date)} ${fmtTime(session.test_date)}`;
 
-  const rows = [
-    [
-      { label: "Sample ID", value: sampleCode },
-      { label: "Reported Date & Time", value: reportedDate },
-    ],
-    [
-      { label: "Patient ID", value: patientCode },
-      { label: "Ref. By.", value: session.org_name || "-" },
-    ],
-    [
-      { label: "Age", value: String(age) },
-      { label: "Gender", value: gender },
-    ],
-    [
-      { label: "Registered Date & Time", value: registeredDate },
-      { label: "", value: "" },
-    ],
-  ];
+const rows = [
+  [
+    { label: "Sample ID", value: sampleCode },
+    { label: "Reported Date & Time", value: reportedDate },
+  ],
+  [
+    { label: "Patient ID", value: patientCode },
+    { label: "Ref. By.", value: session.org_name || "-" },
+  ],
+  [
+    { label: "Age / Gender", value: `${age} / ${gender}` },
+    { label: "Registered Date & Time", value: registeredDate },
+  ],
+];
 
   const RH = 22;
   const C1W = 120;
@@ -330,7 +326,7 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
 
     doc.fillColor(BLACK).font("Helvetica").fontSize(9)
       .text(testLabel, cx + 5, y + 9,
-        { width: COLS[0] - 10, align: "left", lineBreak: false });
+        { width: COLS[0] - 10, align: "center", lineBreak: false });
     cx += COLS[0];
 
     // Col 1 — Unit (centred)
