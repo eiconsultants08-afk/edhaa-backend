@@ -4,17 +4,17 @@ import PDFDocument from "pdfkit";
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
-const MARGIN  = 40;
-const CW      = PAGE_W - 2 * MARGIN; // 515.28
+const MARGIN = 40;
+const CW = PAGE_W - 2 * MARGIN; // 515.28
 
 const WHITE = "#FFFFFF";
 const BLACK = "#000000";
-const GRAY  = "#666666";
+const GRAY = "#666666";
 
 // Result status colours — the ONLY colours used; only in session/single-test reports
 const COLOR_NORMAL = "#11865B";  // green  — normal / positive
-const COLOR_HIGH   = "#B42318";  // red    — high / negative
-const COLOR_LOW    = "#A05A00";  // orange — low
+const COLOR_HIGH = "#B42318";  // red    — high / negative
+const COLOR_LOW = "#A05A00";  // orange — low
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -43,13 +43,13 @@ function statusFor(r, gender) {
   const g = (gender || "").toUpperCase();
 
   const min =
-    g === "MALE"   && r.male_min   != null ? Number(r.male_min)   :
+    g === "MALE" && r.male_min != null ? Number(r.male_min) :
       g === "FEMALE" && r.female_min != null ? Number(r.female_min) :
-    r.normal_min   != null ? Number(r.normal_min) : null;
+        r.normal_min != null ? Number(r.normal_min) : null;
   const max =
-    g === "MALE"   && r.male_max   != null ? Number(r.male_max)   :
+    g === "MALE" && r.male_max != null ? Number(r.male_max) :
       g === "FEMALE" && r.female_max != null ? Number(r.female_max) :
-    r.normal_max   != null ? Number(r.normal_max) : null;
+        r.normal_max != null ? Number(r.normal_max) : null;
 
   if (min != null && max != null) {
     if (v < min) return "LOW";
@@ -57,13 +57,13 @@ function statusFor(r, gender) {
     return "NORMAL";
   }
   if (min == null && max != null) return v > max ? "HIGH" : "NORMAL";
-  if (min != null && max == null) return v < min ? "LOW"  : "NORMAL";
+  if (min != null && max == null) return v < min ? "LOW" : "NORMAL";
   return null;
 }
 
 function statusColor(status) {
-  if (status === "HIGH"   || status === "NEGATIVE") return COLOR_HIGH;
-  if (status === "LOW")                              return COLOR_LOW;
+  if (status === "HIGH" || status === "NEGATIVE") return COLOR_HIGH;
+  if (status === "LOW") return COLOR_LOW;
   if (status === "NORMAL" || status === "POSITIVE") return COLOR_NORMAL;
   return BLACK;
 }
@@ -78,8 +78,8 @@ function sanitize(str) {
   return str
     .replace(/[μµ]/g, "u")    // micro → u  (cell/uL, ug/dL, umol/L)
     .replace(/[–—]/g, "-")    // en/em dash → hyphen
-    .replace(/≥/g,    ">=")
-    .replace(/≤/g,    "<=")
+    .replace(/≥/g, ">=")
+    .replace(/≤/g, "<=")
     .replace(/[^\x00-\xFF]/g, "?"); // catch-all for any other non-Latin-1
 }
 
@@ -192,17 +192,38 @@ function drawPatientInfo(doc, session, startY) {
   const patientCode = session.patient_id || "-";
   const sampleCode = session.sample_id || "-";
 
+  const age =
+    session.patient_age ||
+    session.age ||
+    calcAge(session.patient_dob) ||
+    "-";
+
+  const gender =
+    session.patient_gender ||
+    session.gender ||
+    "-";
+
+  const registeredDate =
+    `${fmtDate(session.created_at || session.registered_at || session.test_date)} ${fmtTime(session.created_at || session.registered_at || session.test_date)}`;
+
+  const reportedDate =
+    `${fmtDate(session.test_date)} ${fmtTime(session.test_date)}`;
+
   const rows = [
     [
       { label: "Sample ID", value: sampleCode },
-      { label: "Received & Reported Date", value: `${fmtDate(session.test_date)}  ${fmtTime()}` },
+      { label: "Reported Date & Time", value: reportedDate },
     ],
     [
       { label: "Patient ID", value: patientCode },
       { label: "Ref. By.", value: session.org_name || "-" },
     ],
     [
-      { label: "Start Date", value: fmtDate(session.test_date) },
+      { label: "Age", value: String(age) },
+      { label: "Gender", value: gender },
+    ],
+    [
+      { label: "Registered Date & Time", value: registeredDate },
       { label: "", value: "" },
     ],
   ];
@@ -266,7 +287,7 @@ function drawResultsTable(doc, results, startY, patientGender, colorResults = tr
 
   // Column sequence: Test Name | Value | Unit | Range | Method
   const COLS = [140, 85, 60, 120, 110];
-  const HDRS = ["Test", "Observed Value", "Unit", "Biological Reference", "Method"];
+  const HDRS = ["Test Name", "Observed Value", "Unit", "Biological Reference", "Method"];
   const RH = 28; // taller rows so wrapped method text stays within the cell
 
   // ── Header row ──────────────────────────────────────────────────────────────
@@ -365,7 +386,7 @@ function drawFooter(doc, y) {
   y += 13;
 
   const lines = [
-    "1. This report has been generated as part of a pilot study and is strictly confidential. It must not be disclosed to patients or any unauthorized parties.",
+    "1. This report has been generated as part of a pilot study and is strictly confidential. It must not be disclosed to patients or any unauthorized parties without clinical approval.",
     "2. Reproduction, distribution, or disclosure of this report, in whole or in part, is strictly prohibited without prior written permission from the administration.",
     "3. Biological reference/Normal ranges presented herein are derived from a limited sample set tested during prior pilot study.",
   ];
@@ -495,8 +516,18 @@ export function generateBulkReportPdf(histories, meta = {}) {
     }
 
     // ── Layout ──────────────────────────────────────────────────────────────────
-    const COLS = [55, 85, 110, 65, 55, 50, 95];// Date | Patient ID | Test | Result | Unit | Status | Method = 515
-    const HDRS = ["Date", "Patient ID", "Test", "Result", "Unit", "Status", "Method"];
+    const COLS = [50, 60, 35, 40, 110, 65, 55, 55];
+
+    const HDRS = [
+      "Date",
+      "Patient ID",
+      "Age",
+      "Gender",
+      "Test",
+      "Result",
+      "Unit",
+      "Status",
+    ];
     const RH = 24; // taller rows so wrapped method text stays within the cell
 
     const doc = new PDFDocument({ margin: 0, autoFirstPage: false, size: "A4" });
@@ -647,21 +678,22 @@ export function generateBulkReportPdf(histories, meta = {}) {
       const cells = [
         { text: row.dateStr, color: BLACK, align: "center", wrap: false },
         { text: row.patientLabel, color: BLACK, align: "center", wrap: false },
+        { text: row.age || "-", color: BLACK, align: "center", wrap: false },
+        { text: row.gender || "-", color: BLACK, align: "center", wrap: false },
         { text: row.testName, color: BLACK, align: "center", wrap: false },
         { text: row.resultValue, color: BLACK, align: "center", wrap: false },
         { text: row.resultUnit, color: BLACK, align: "center", wrap: false },
         { text: row.status, color: BLACK, align: "center", wrap: false },
-        { text: row.methodStr, color: GRAY, align: "center", wrap: true },
       ];
 
       let cx = MARGIN;
       cells.forEach((cell, i) => {
         const textY = cell.wrap ? y + 5 : y + 8;
         const opts = cell.wrap
-          ? { width: COLS[i] - 8, align: cell.align }
-          : { width: COLS[i] - 8, align: cell.align, lineBreak: false };
+          ? { width: COLS[i], align: cell.align }
+          : { width: COLS[i], align: cell.align, lineBreak: false };
         doc.fillColor(cell.color).font("Helvetica").fontSize(8)
-          .text(cell.text, cx + 4, textY, opts);
+          .text(cell.text, cx, textY, opts);
         cx += COLS[i];
       });
 

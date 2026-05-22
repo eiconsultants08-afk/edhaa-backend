@@ -6,6 +6,8 @@ import moment from 'moment-timezone';
 import { constants } from "../../constants.js";
 import { emitToUser } from "../../socket.js";
 import { generateSessionReportPdf, generateBulkReportPdf } from "../../pdf/reportGenerator.js";
+import sequelize from "../../database/connectdb.js";
+import { QueryTypes } from "sequelize";
 
 
 
@@ -708,10 +710,95 @@ export async function getTestTypeSessionsAdmin(req, res) {
   }
 }
 
-// ── Admin test session routes ──────────────────────────────────────────────────
-// Admin can register and perform tests just like a technician.
-// entered_by_user_id will be the admin's user_id; their role (ADMIN) in the
-// users table is what the front-end uses to show "performed by Admin".
+export async function getTatAnalyticsAdmin(req, res) {
+  try {
+    const { user_id } = req;
+    const { startDate, endDate } = req.query;
+
+    const admin = await getUserByCondition({ user_id });
+
+    if (!admin) return failureResponse(res, 404, "User not found");
+    if (admin.status !== "ACTIVE")
+      return failureResponse(res, 403, "User is not active");
+    if (admin.role !== "ADMIN")
+      return failureResponse(res, 403, "Forbidden");
+    if (!admin.org_id)
+      return failureResponse(res, 403, "Admin org not assigned");
+
+    if (!startDate || !endDate) {
+      return failureResponse(res, 400, "startDate and endDate are required");
+    }
+
+    const replacements = {
+      org_id: admin.org_id,
+      startDate,
+      endDate,
+    };
+
+    const avgTurnaround = await sequelize.query(
+      `
+      SELECT
+        ROUND(
+          AVG(EXTRACT(EPOCH FROM (th.completed_at - th.created_at)) / 60)
+        )::int AS avg_minutes
+      FROM test_histories th
+      WHERE th.org_id = :org_id
+        AND th.status = 'COMPLETED'
+        AND th.completed_at IS NOT NULL
+        AND th.completed_at >= :startDate
+        AND th.completed_at < :endDate
+      `,
+      {
+        replacements,
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    const patientTurnaround = await sequelize.query(
+      `
+      SELECT
+        p.patient_id,
+        p.name AS patient_name,
+        TO_CHAR(th.created_at, 'DD Mon YYYY, HH24:MI') AS registered_at,
+        TO_CHAR(th.completed_at, 'DD Mon YYYY, HH24:MI') AS completed_at,
+        ROUND(
+          EXTRACT(EPOCH FROM (th.completed_at - th.created_at)) / 60
+        )::int AS turnaround_minutes
+      FROM test_histories th
+      JOIN patients p ON p.patient_id = th.patient_id
+      WHERE th.org_id = :org_id
+        AND th.status = 'COMPLETED'
+        AND th.completed_at IS NOT NULL
+        AND th.completed_at >= :startDate
+        AND th.completed_at < :endDate
+      ORDER BY th.completed_at DESC
+      LIMIT 20
+      `,
+      {
+        replacements,
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    return res.status(200).send({
+      status: 200,
+      success: true,
+      data: {
+        avgTurnaroundMinutes: avgTurnaround?.[0]?.avg_minutes || 0,
+        patientTurnaround,
+      },
+      message: "Admin TAT analytics fetched successfully",
+    });
+  } catch (err) {
+    console.error("getTatAnalyticsAdmin error:", err);
+    return res.status(500).send({
+      status: 500,
+      success: false,
+      message: "Internal server error",
+    });
+  }
+}
+
 
 export async function getTestTypesAdmin(req, res) {
   try {
