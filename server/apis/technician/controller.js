@@ -32,7 +32,7 @@ import sequelize from "../../database/connectdb.js";
 import TestHistory from "../../database/test_history.js";
 import PatientTestResults from "../../database/patient_test_results.js";
 import TestTypes from "../../database/test_types.js";
-import { Op } from "sequelize";
+import { Op, fn, col, where } from "sequelize";
 
 export async function getAllPatients(req, res) {
   try {
@@ -800,10 +800,10 @@ export async function addSessionResults(req, res) {
       .filter((t) => validIdSet.has(t.test_type_id) && (t.value_num != null || t.value_text != null))
       .map((t) => ({
         history_id,
-        patient_id:   session.patient_id,
+        patient_id: session.patient_id,
         org_id: technician.org_id,
         test_type_id: t.test_type_id,
-        value_num:  t.value_num  != null ? Number(t.value_num)  : null,
+        value_num: t.value_num != null ? Number(t.value_num) : null,
         value_text: t.value_text != null ? String(t.value_text) : null,
       }));
 
@@ -837,7 +837,7 @@ export async function generateCsvReportTechnician(req, res) {
       return failureResponse(res, 400, "startDate and endDate query params are required (YYYY-MM-DD)");
 
     const startDate = moment.tz(rawStart, "YYYY-MM-DD", IST).startOf("day").toISOString();
-    const endDate   = moment.tz(rawEnd,   "YYYY-MM-DD", IST).endOf("day").toISOString();
+    const endDate = moment.tz(rawEnd, "YYYY-MM-DD", IST).endOf("day").toISOString();
 
     const histories = await getResultsForCsvExport(
       technician.org_id,
@@ -848,8 +848,8 @@ export async function generateCsvReportTechnician(req, res) {
 
     const org = await getOrgById(technician.org_id);
     const xlsxBuffer = await buildTestResultsXlsx(histories, {
-      orgName:    org?.org_name || "EDHAA Diagnostic",
-      orgAddress: org?.address  || "",
+      orgName: org?.org_name || "EDHAA Diagnostic",
+      orgAddress: org?.address || "",
     });
     const xlsx_base64 = Buffer.from(xlsxBuffer).toString("base64");
 
@@ -883,7 +883,7 @@ export async function generatePdfReportTechnician(req, res) {
       return failureResponse(res, 400, "startDate and endDate query params are required (YYYY-MM-DD)");
 
     const startDate = moment.tz(rawStart, "YYYY-MM-DD", IST).startOf("day").toISOString();
-    const endDate   = moment.tz(rawEnd,   "YYYY-MM-DD", IST).endOf("day").toISOString();
+    const endDate = moment.tz(rawEnd, "YYYY-MM-DD", IST).endOf("day").toISOString();
 
     const histories = await getResultsForCsvExport(
       technician.org_id,
@@ -895,16 +895,16 @@ export async function generatePdfReportTechnician(req, res) {
     const org = await getOrgById(technician.org_id);
 
     const pdfBuffer = await generateBulkReportPdf(histories, {
-      orgName:        org?.org_name || "EDHAA Diagnostic",
-      orgAddress:     org?.address  || "",
-      deptName:       "",
-      startDate:      rawStart,
-      endDate:        rawEnd,
+      orgName: org?.org_name || "EDHAA Diagnostic",
+      orgAddress: org?.address || "",
+      deptName: "",
+      startDate: rawStart,
+      endDate: rawEnd,
       performerLabel: `Technician: ${technician.name || technician.username}`,
     });
 
     const pdf_base64 = pdfBuffer.toString("base64");
-    const filename   = `report_${rawStart}_to_${rawEnd}.pdf`;
+    const filename = `report_${rawStart}_to_${rawEnd}.pdf`;
 
     return res.status(200).send({
       status: 200,
@@ -936,7 +936,7 @@ export async function submitUartResult(req, res) {
 
     for (const item of items) {
       if (!item.patient_id) return failureResponse(res, 400, "patient_id required in each entry");
-      if (!item.test)       return failureResponse(res, 400, "test required in each entry");
+      if (!item.test) return failureResponse(res, 400, "test required in each entry");
       if (item.val == null) return failureResponse(res, 400, "val required in each entry");
     }
 
@@ -949,17 +949,17 @@ export async function submitUartResult(req, res) {
     }
 
     const entries = items.map(item => ({
-      patient_id:  String(item.patient_id),
-      test_name:   item.test,
-      value_num:   Number(item.val),
+      patient_id: String(item.patient_id),
+      test_name: item.test,
+      value_num: Number(item.val),
       method_used: item.method || null,
     }));
 
     const created = await createUartTestResults({
       entries,
       entered_by_user_id: technician.user_id,
-      department_id:      technician.department_id || null,
-      org_id:             technician.org_id,
+      department_id: technician.department_id || null,
+      org_id: technician.org_id,
     });
 
     return res.status(201).send({
@@ -987,11 +987,11 @@ export async function submitUartSessionComplete(req, res) {
 
     const { patient_id, results } = req.body || {};
 
-    if (!patient_id)                                     return failureResponse(res, 400, "patient_id required");
+    if (!patient_id) return failureResponse(res, 400, "patient_id required");
     if (!Array.isArray(results) || results.length === 0) return failureResponse(res, 400, "results array required");
 
     for (const r of results) {
-      if (!r.test_name)                         return failureResponse(res, 400, "each result must have test_name");
+      if (!r.test_name) return failureResponse(res, 400, "each result must have test_name");
       if (r.value_num == null && !r.value_text) return failureResponse(res, 400, `value_num or value_text required for "${r.test_name}"`);
     }
 
@@ -1016,6 +1016,260 @@ export async function submitUartSessionComplete(req, res) {
     return res.status(500).send({ status: 500, message: err.message || "Internal server error" });
   }
 }
+
+const calculateDerivedTests = async ({
+  history_id,
+  patient,
+  org_id,
+  transaction,
+}) => {
+  //   const sessionResults = await PatientTestResults.findAll({
+  //     where: { history_id },
+  //     include: [
+  //       {
+  //         model: TestTypes,
+  //         attributes: ["name"],
+  //       },
+  //     ],
+  //     transaction,
+  //   });
+
+  //   const values = {};
+
+  //   sessionResults.forEach((r) => {
+  //     const testName = r.TestType?.name;
+
+  //     ```
+  // const value =
+  //   r.value_num !== null
+  //     ? Number(r.value_num)
+  //     : r.value_text;
+
+  // values[testName] = value;
+  // ```
+
+  //   });
+
+  const sessionResults = await PatientTestResults.findAll({
+    where: { history_id },
+    include: [
+      {
+        model: TestTypes,
+        as: "testType",
+        attributes: ["name"],
+      },
+    ],
+    transaction,
+  });
+
+  const values = {};
+
+  sessionResults.forEach((r) => {
+    const testName = r.testType?.name;
+
+    const value =
+      r.value_num !== null
+        ? Number(r.value_num)
+        : r.value_text;
+
+    values[testName] = value;
+  });
+
+  const calculatedResults = [];
+
+  // ----------------------------
+  // BUN
+  // ----------------------------
+  if (values["S. Urea"]) {
+    calculatedResults.push({
+      name: "BUN",
+      value: Number(values["S. Urea"]) / 2.14,
+    });
+  }
+
+  // ----------------------------
+  // Indirect Bilirubin
+  // ----------------------------
+  if (
+    values["S. Total Bilirubin"] &&
+    values["S. Direct Bilirubin"]
+  ) {
+    calculatedResults.push({
+      name: "Indirect Bilirubin",
+      value:
+        Number(values["S. Total Bilirubin"]) -
+        Number(values["S. Direct Bilirubin"]),
+    });
+  }
+
+  // ----------------------------
+  // S. Globulin
+  // ----------------------------
+  if (
+    values["S. TP"] &&
+    values["S. Albumin"]
+  ) {
+    calculatedResults.push({
+      name: "S. Globulin",
+      value:
+        Number(values["S. TP"]) -
+        Number(values["S. Albumin"]),
+    });
+  }
+
+  // ----------------------------
+  // S. A/G Ratio
+  // ----------------------------
+  if (
+    values["S. TP"] &&
+    values["S. Albumin"]
+  ) {
+    const globulin =
+      Number(values["S. TP"]) -
+      Number(values["S. Albumin"]);
+
+    ```
+if (globulin !== 0) {
+  calculatedResults.push({
+    name: "S. A/G Ratio",
+    value:
+      Number(values["S. Albumin"]) / globulin,
+  });
+}
+```
+
+  }
+
+  // ----------------------------
+  // S. Non HDL-C
+  // ----------------------------
+  if (
+    values["S. TC"] &&
+    values["S. HDL-C"]
+  ) {
+    calculatedResults.push({
+      name: "S. Non HDL-C",
+      value:
+        Number(values["S. TC"]) -
+        Number(values["S. HDL-C"]),
+    });
+  }
+
+  // ----------------------------
+  // S. VLDL-C
+  // ----------------------------
+  if (values["S. Triglycerides"]) {
+    calculatedResults.push({
+      name: "S. VLDL-C",
+      value:
+        Number(values["S. Triglycerides"]) / 5,
+    });
+  }
+
+  // ----------------------------
+  // S. LDL-C
+  // ----------------------------
+  if (
+    values["S. TC"] &&
+    values["S. HDL-C"] &&
+    values["S. Triglycerides"]
+  ) {
+    calculatedResults.push({
+      name: "S. LDL-C",
+      value:
+        Number(values["S. TC"]) -
+        Number(values["S. HDL-C"]) -
+        Number(values["S. Triglycerides"]) / 5,
+    });
+  }
+
+  // ----------------------------
+  // LDL / HDL Ratio
+  // ----------------------------
+  if (
+    values["S. LDL-C"] &&
+    values["S. HDL-C"]
+  ) {
+    calculatedResults.push({
+      name: "S. LDL/HDL Ratio",
+      value:
+        Number(values["S. LDL-C"]) /
+        Number(values["S. HDL-C"]),
+    });
+  }
+
+  // ----------------------------
+  // Cholesterol / HDL Ratio
+  // ----------------------------
+  if (
+    values["S. TC"] &&
+    values["S. HDL-C"]
+  ) {
+    calculatedResults.push({
+      name: "S. Cholesterol / HDL Ratio",
+      value:
+        Number(values["S. TC"]) /
+        Number(values["S. HDL-C"]),
+    });
+  }
+
+  // ----------------------------
+  // eAG
+  // ----------------------------
+  if (values["HbA1c"]) {
+    calculatedResults.push({
+      name: "eAG",
+      value:
+        28.7 * Number(values["HbA1c"]) - 46.7,
+    });
+  }
+
+  // ----------------------------
+  // SAVE CALCULATED TESTS
+  // ----------------------------
+  for (const item of calculatedResults) {
+    // const testType = await TestTypes.findOne({
+    //   where: {
+    //     name: item.name,
+    //     org_id,
+    //   },
+    //   transaction,
+    // });
+
+    const testType = await TestTypes.findOne({
+      where: {
+        name: item.name,
+      },
+      transaction,
+    });
+
+    ```
+if (!testType) continue;
+
+await PatientTestResults.update(
+  {
+    value_num: Number(item.value.toFixed(2)),
+    value_text: null,
+    result_source: "CALCULATED",
+    synced_at: new Date(),
+    is_locked: true,
+    method_used: "Auto Calculated",
+  },
+  {
+    where: {
+      history_id,
+      patient_id: patient.patient_id,
+      test_type_id: testType.test_type_id,
+    },
+    transaction,
+  }
+);
+```
+
+  }
+};
+
+
 
 export const saveUartResult = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -1053,11 +1307,20 @@ export const saveUartResult = async (req, res) => {
       return failureResponse(res, 400, "Please register test session first");
     }
 
+    // const testType = await TestTypes.findOne({
+    //   where: {
+    //     name: test,
+    //     org_id: history.org_id,
+    //   },
+    //   transaction,
+    // });
+
+
     const testType = await TestTypes.findOne({
-      where: {
-        name: test,
-        org_id: history.org_id,
-      },
+      where: where(
+        fn("LOWER", col("name")),
+        test.toLowerCase()
+      ),
       transaction,
     });
 
@@ -1119,6 +1382,14 @@ export const saveUartResult = async (req, res) => {
         transaction,
       }
     );
+
+    await calculateDerivedTests({
+      history_id: history.history_id,
+      patient,
+      org_id: history.org_id,
+      transaction,
+    });
+
 
     await transaction.commit();
 
