@@ -22,7 +22,7 @@ export const configuration = {
       "http://localhost:3000",
       "http://www.localhost:3000",
       "http://localhost:5173",
-      "http://10.137.14.218:3000"
+      "http://10.137.14.218:3000",
     ],
     port: 3030,
   },
@@ -44,18 +44,19 @@ export const configuration = {
   },
   prod: {
     postgres: {
-      database: "datacast",
-      username: "postgres",
-      password: "admin",
+      username: secrets.USERNAME,
       dialect: "postgres",
-      host: "localhost",
+      password: secrets.PASSWORD,
+      database: secrets.DATABASE,
+      host: secrets.HOST,
+      port: 5432,
     },
     jwt: {
-      secret: "",
-      refreshsecret: "",
+      secret: secrets.SECRET,
+      refreshsecret: secrets.REFRESH_SECRET,
     },
     ui: "http://localhost:3000",
-    port: 3000,
+    port: 3030,
   },
 };
 
