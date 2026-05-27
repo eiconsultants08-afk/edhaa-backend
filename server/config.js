@@ -30,14 +30,10 @@ export const configuration = {
     postgres: {
       database: "datacast",
       username: "postgres",
-      password: "datacast123$",
+      password: null,
       dialect: "postgres",
-      host: "datacast-test-02.ckgdsdftfxnu.ap-south-1.rds.amazonaws.com",
+      host: null,
       port: 5432,
-    },
-    jwt: {
-      secret: "lala",
-      refreshsecret: "refreshlala",
     },
     ui: "http://localhost:3000",
     port: 3030,
