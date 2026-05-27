@@ -14,8 +14,8 @@ export const constants = {
   EXPIRY_REFRESH_TOKEN: "1y",
   EXPIRES_IN: 15,
 
-  ACCESS_TOKEN_SECRET: "wow",
-  REFRESH_TOKEN_SECRET: "edhaA",
+  ACCESS_TOKEN_SECRET: "secrets",
+  REFRESH_TOKEN_SECRET: "refresh_secret",
 
   PER_PAGE_ROWS_MAX: 50,
 
