@@ -43,9 +43,15 @@ async function getSuperAdminContext(user_id, res) {
     return null;
   }
 
-  if (user.status !== "ACTIVE") {
-    failureResponse(res, 403, "User is not active");
-    return null;
+  // if (user.status !== "ACTIVE") {
+  //   failureResponse(res, 403, "User is not active");
+  //   return null;
+  // }
+  if (!["ACTIVE", "WORKING"].includes(user.status)) {
+    return res.status(403).send({
+      status: 403,
+      message: "User is not active"
+    });
   }
 
   if (user.role !== constants.SUPER_ADMIN) {
