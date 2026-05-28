@@ -126,6 +126,10 @@ async function startPostgres() {
     await sequelize.query(`ALTER TABLE patient_test_results ALTER COLUMN history_id SET NOT NULL;`);
     console.log("✅ patient_test_results.history_id enforced NOT NULL");
 
+    // Super admins are organization-independent, so their refresh token rows may not have org_id.
+    await sequelize.query(`ALTER TABLE tokens ALTER COLUMN org_id DROP NOT NULL;`);
+    console.log("✅ tokens.org_id column patched (nullable for SUPER_ADMIN)");
+
 
     await sequelize.sync();
     console.log("✅ Models synced!");

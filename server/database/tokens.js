@@ -23,7 +23,7 @@ const Tokens = sequelize.define(
 
     org_id: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
       references: { model: Organization, key: "org_id" },
       onDelete: "CASCADE",
     },
