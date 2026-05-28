@@ -1,13 +1,9 @@
-// server.js (or index.js)
-
-import { createServer } from "http";
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { config } from "./constants.js";
 import register from "./routes.js";
 import sequelize from "./database/connectdb.js";
-import { initSocket } from "./socket.js";
 
 const app = express();
 
@@ -54,10 +50,7 @@ register(app);
 /**
  * ✅ Start server on 0.0.0.0 so your phone on the same Wi-Fi can access it
  */
-const httpServer = createServer(app);
-initSocket(httpServer);
-
-httpServer.listen(config.port, "0.0.0.0", async () => {
+app.listen(config.port, "0.0.0.0", async () => {
   console.log(`🚀 Server running on http://0.0.0.0:${config.port}`);
   await startPostgres();
 });

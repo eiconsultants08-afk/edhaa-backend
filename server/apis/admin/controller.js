@@ -4,7 +4,7 @@ import { buildTestResultsXlsx } from "../../pdf/excelReportGenerator.js";
 import { activateTechnician, inactivateTechnician, setTechnicianWorking, hasActiveToken, assignDeviceToTechnician, createDevice, createTechnician, deactivateTechnician, getDeviceByIdFlat, getDevices, getDevicesByTechnician, getSessionCountByTechnician, getUsers, getUserByCondition, unassignDevicesByTechnician, getPatients, getPatientByIdFlat, createPatient, updatePatient, getPatientTestHistory, getTestSessionFlat, getAnalyticsOverview, getAnalyticsDailyTests, getAnalyticsTestsPerDevice, getAnalyticsTestTypeDistribution, getAnalyticsAbnormalRates, getAnalyticsWeeklyPatients, getAnalyticsTechnicianActivity, getAnalyticsPatientGender, getAnalyticsSessionStatus, getAnalyticsTestTypeSessions, bulkCreatePatientTestResults, bulkUpdateTestResultsBySession, createTestHistory, getTestTypesByOrg, getOrgPlanTestTypeIds, updateTestHistory as updateTestHistoryDb, getResultsForCsvExport, getOrgById } from "../../database/db.js";
 import moment from 'moment-timezone';
 import { constants } from "../../constants.js";
-import { emitToUser } from "../../socket.js";
+// import { emitToUser } from "../../socket.js";
 import { generateSessionReportPdf, generateBulkReportPdf } from "../../pdf/reportGenerator.js";
 import sequelize from "../../database/connectdb.js";
 import { QueryTypes } from "sequelize";
@@ -289,15 +289,15 @@ export async function assignDevice(req, res) {
     }
 
     // Real-time: notify old technician their device was taken
-    if (prev_tech_id && prev_tech_id !== technician_id) {
-      emitToUser(prev_tech_id, "device:updated", { device_id, action: "unassigned" });
-    }
+    // if (prev_tech_id && prev_tech_id !== technician_id) {
+    //   emitToUser(prev_tech_id, "device:updated", { device_id, action: "unassigned" });
+    // }
     // Real-time: notify new technician they received a device
-    if (technician_id) {
-      emitToUser(technician_id, "device:updated", { device_id, action: "assigned" });
-    }
+    // if (technician_id) {
+    //   emitToUser(technician_id, "device:updated", { device_id, action: "assigned" });
+    // }
     // Real-time: notify the admin's own socket so open screens can refresh
-    emitToUser(admin.user_id, "devices:updated", { device_id });
+    // emitToUser(admin.user_id, "devices:updated", { device_id });
 
     return res.status(200).send({
       status: 200,
@@ -450,7 +450,7 @@ export async function removeTechnician(req, res) {
     await deactivateTechnician(technician_id);
 
     // Real-time: notify the removed technician
-    emitToUser(technician_id, "user:deactivated", { reason: "Removed by admin" });
+    // emitToUser(technician_id, "user:deactivated", { reason: "Removed by admin" });
 
     return res.status(200).send({
       status: 200,
