@@ -91,8 +91,8 @@ const STATUS_STYLES = {
   "LOW":           { fill: "FFFFC000", font: "FF000000" },  // orange
   "CRITICAL HIGH": { fill: "FFC00000", font: "FFFFFFFF" },  // dark red
   "CRITICAL LOW":  { fill: "FFE26B0A", font: "FFFFFFFF" },  // dark orange
-  "NEGATIVE":      { fill: "FFFF0000", font: "FFFFFFFF" },  // red
-  "POSITIVE":      { fill: "FF92D050", font: "FF000000" },  // green
+  "NEGATIVE": { fill: "FF92D050", font: "FF000000" }, // green
+  "POSITIVE": { fill: "FFFF0000", font: "FFFFFFFF" }, // red
 };
 
 // ── Main builder ───────────────────────────────────────────────────────────────

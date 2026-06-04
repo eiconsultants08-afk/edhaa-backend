@@ -27,7 +27,12 @@ import {
 import { addData, failureResponse, getPaginationInfo } from "../../utils.js";
 import { buildTestResultsXlsx } from "../../pdf/excelReportGenerator.js";
 import moment from "moment-timezone";
-import { generateTestReportPdf, generateSessionReportPdf, generateBulkReportPdf, generateTodayPatientReportPdf } from "../../pdf/reportGenerator.js";
+import {
+  generateTestReportPdf,
+  generateSessionReportPdf,
+  generateBulkReportPdf,
+  generateTodayPatientReportPdf,
+} from "../../pdf/reportGenerator.js";
 import sequelize from "../../database/connectdb.js";
 import TestHistory from "../../database/test_history.js";
 import PatientTestResults from "../../database/patient_test_results.js";
@@ -62,11 +67,7 @@ export async function getAllPatients(req, res) {
       org_id: technician.org_id,
     };
 
-    const patients = await getPatients(
-      limit,
-      offset,
-      conditions
-    );
+    const patients = await getPatients(limit, offset, conditions);
 
     return res.status(200).send({
       status: 200,
@@ -90,9 +91,12 @@ export async function getDeviceByDeviceId(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
-    if (!technician.org_id) return failureResponse(res, 403, "Technician org not assigned");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
+    if (!technician.org_id)
+      return failureResponse(res, 403, "Technician org not assigned");
 
     const device = await getDeviceByIdFlat(device_id);
     if (!device) return failureResponse(res, 404, "Device not found");
@@ -103,7 +107,9 @@ export async function getDeviceByDeviceId(req, res) {
     return res.status(200).send({ status: 200, data: device });
   } catch (err) {
     console.error("getDeviceByDeviceId error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -113,15 +119,19 @@ export async function getMyDevices(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const devices = await getDevicesByTechnician(user_id);
 
     return res.status(200).send({ status: 200, data: devices });
   } catch (err) {
     console.error("getMyDevices error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -256,7 +266,6 @@ export async function updatePatientSampleId(req, res) {
     });
   }
 }
-
 
 export async function getTodayPatientReport(req, res) {
   try {
@@ -404,7 +413,7 @@ export async function getPatientRangeReport(req, res) {
       return failureResponse(
         res,
         404,
-        "No completed tests found for selected date range"
+        "No completed tests found for selected date range",
       );
     }
 
@@ -448,7 +457,8 @@ export async function registerTestSession(req, res) {
     if (technician.role !== constants.TECHNICIAN)
       return failureResponse(res, 403, "Forbidden");
 
-    const { patient_id, test_date, device_id, notes, test_type_ids } = req.body || {};
+    const { patient_id, test_date, device_id, notes, test_type_ids } =
+      req.body || {};
 
     if (!patient_id) return failureResponse(res, 400, "patient_id required");
     if (!test_date) return failureResponse(res, 400, "test_date required");
@@ -460,7 +470,10 @@ export async function registerTestSession(req, res) {
     if (patient.org_id !== technician.org_id)
       return failureResponse(res, 403, "Access denied");
 
-    const validIds = await getOrgPlanTestTypeIds(test_type_ids, technician.org_id);
+    const validIds = await getOrgPlanTestTypeIds(
+      test_type_ids,
+      technician.org_id,
+    );
     if (validIds.size !== test_type_ids.length)
       return failureResponse(res, 400, "Invalid or unauthorized test type");
 
@@ -475,7 +488,7 @@ export async function registerTestSession(req, res) {
       status: "PENDING",
     });
 
-    const insertData = test_type_ids.map(id => ({
+    const insertData = test_type_ids.map((id) => ({
       history_id: history.history_id,
       patient_id,
       org_id: technician.org_id,
@@ -492,7 +505,9 @@ export async function registerTestSession(req, res) {
     });
   } catch (err) {
     console.error("registerTestSession error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -521,11 +536,48 @@ export async function completeTestSession(req, res) {
 
     // Save any provided values first
     if (Array.isArray(tests) && tests.length > 0) {
-      const filledTests = tests.filter(t =>
-        t.value_num != null || (t.value_text != null && t.value_text !== "")
+      const filledTests = tests.filter(
+        (t) =>
+          t.value_num != null || (t.value_text != null && t.value_text !== ""),
       );
+
       if (filledTests.length > 0) {
         await bulkUpdateTestResultsBySession(history_id, filledTests);
+
+        const filledTestTypeIds = filledTests
+          .map((t) => t.test_type_id)
+          .filter(Boolean);
+
+        if (filledTestTypeIds.length > 0) {
+          const calculatedTypes = await TestTypes.findAll({
+            where: {
+              test_type_id: { [Op.in]: filledTestTypeIds },
+              category: "Calculated",
+            },
+          });
+
+          const calculatedTypeIds = calculatedTypes.map((t) => t.test_type_id);
+
+          if (calculatedTypeIds.length > 0) {
+            await PatientTestResults.update(
+              { method_used: "Calculated" },
+              {
+                where: {
+                  history_id,
+                  test_type_id: { [Op.in]: calculatedTypeIds },
+                },
+              },
+            );
+          }
+        }
+
+        await calculateDerivedTests({
+          history_id,
+          patient: {
+            patient_id: session.patient_id,
+          },
+          org_id: technician.org_id,
+        });
       }
     }
 
@@ -544,9 +596,10 @@ export async function completeTestSession(req, res) {
     if (device_id && !session.device_id) historyUpdate.device_id = device_id;
     const updated = await updateTestHistoryDb(history_id, historyUpdate);
 
-    const message = newStatus === "COMPLETED"
-      ? "Test session completed"
-      : "Test values saved";
+    const message =
+      newStatus === "COMPLETED"
+        ? "Test session completed"
+        : "Test values saved";
 
     return res.status(200).send({
       status: 200,
@@ -555,7 +608,9 @@ export async function completeTestSession(req, res) {
     });
   } catch (err) {
     console.error("completeTestSession error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -566,15 +621,19 @@ export async function getTestTypes(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const testTypes = await getTestTypesByOrg(technician.org_id);
 
     return res.status(200).send({ status: 200, data: testTypes });
   } catch (err) {
     console.error("getTestTypes error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -593,8 +652,10 @@ export async function getPatientTests(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const patient = await getPatientByIdFlat({ patient_id });
     if (!patient) return failureResponse(res, 404, "Patient not found");
@@ -611,7 +672,9 @@ export async function getPatientTests(req, res) {
     return res.status(200).send({ status: 200, data: history });
   } catch (err) {
     console.error("getPatientTests error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -625,17 +688,22 @@ export async function getTestResult(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const result = await getTestResultByIdFlat(result_id);
     if (!result) return failureResponse(res, 404, "Test result not found");
-    if (result.org_id !== technician.org_id) return failureResponse(res, 403, "Access denied");
+    if (result.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
 
     return res.status(200).send({ status: 200, data: result });
   } catch (err) {
     console.error("getTestResult error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -649,12 +717,15 @@ export async function getTestResultReport(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const result = await getTestResultByIdFlat(result_id);
     if (!result) return failureResponse(res, 404, "Test result not found");
-    if (result.org_id !== technician.org_id) return failureResponse(res, 403, "Access denied");
+    if (result.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
 
     const pdfBuffer = await generateTestReportPdf(result);
     const pdf_base64 = pdfBuffer.toString("base64");
@@ -662,12 +733,18 @@ export async function getTestResultReport(req, res) {
     return res.status(200).send({ status: 200, data: { pdf_base64 } });
   } catch (err) {
     console.error("getTestResultReport error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
 export async function updatePatientRecord(req, res) {
-  return failureResponse(res, 403, "Technicians cannot edit patient information");
+  return failureResponse(
+    res,
+    403,
+    "Technicians cannot edit patient information",
+  );
 }
 
 export async function updateTestResult(req, res) {
@@ -680,23 +757,28 @@ export async function updateTestResult(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const result = await getTestResultByIdFlat(result_id);
     if (!result) return failureResponse(res, 404, "Test result not found");
-    if (result.org_id !== technician.org_id) return failureResponse(res, 403, "Access denied");
+    if (result.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
 
     const raw = req.body || {};
     const filteredData = {};
-    if (raw.value_num !== undefined) filteredData.value_num = Number(raw.value_num);
+    if (raw.value_num !== undefined)
+      filteredData.value_num = Number(raw.value_num);
     if (raw.value_text !== undefined) filteredData.value_text = raw.value_text;
 
     if (Object.keys(filteredData).length === 0)
       return failureResponse(res, 400, "No updatable fields provided");
 
     const updated = await updateTestResultDb(result_id, filteredData);
-    if (!updated) return failureResponse(res, 500, "Failed to update test result");
+    if (!updated)
+      return failureResponse(res, 500, "Failed to update test result");
 
     return res.status(200).send({
       status: 200,
@@ -705,7 +787,9 @@ export async function updateTestResult(req, res) {
     });
   } catch (err) {
     console.error("updateTestResult error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -719,12 +803,15 @@ export async function getSessionReport(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const session = await getTestSessionFlat(history_id);
     if (!session) return failureResponse(res, 404, "Session not found");
-    if (session.org_id !== technician.org_id) return failureResponse(res, 403, "Access denied");
+    if (session.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
 
     const pdfBuffer = await generateSessionReportPdf(session);
     const pdf_base64 = pdfBuffer.toString("base64");
@@ -732,7 +819,9 @@ export async function getSessionReport(req, res) {
     return res.status(200).send({ status: 200, data: { pdf_base64 } });
   } catch (err) {
     console.error("getSessionReport error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -746,12 +835,15 @@ export async function updateSession(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const session = await getTestSessionFlat(history_id);
     if (!session) return failureResponse(res, 404, "Session not found");
-    if (session.org_id !== technician.org_id) return failureResponse(res, 403, "Access denied");
+    if (session.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
 
     const raw = req.body || {};
     const filteredData = addData(raw, constants.UPDATE_SESSION_ATTRIBUTES);
@@ -762,10 +854,14 @@ export async function updateSession(req, res) {
     const updated = await updateTestHistoryDb(history_id, filteredData);
     if (!updated) return failureResponse(res, 500, "Failed to update session");
 
-    return res.status(200).send({ status: 200, data: updated, message: "Session updated" });
+    return res
+      .status(200)
+      .send({ status: 200, data: updated, message: "Session updated" });
   } catch (err) {
     console.error("updateSession error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -779,25 +875,33 @@ export async function addSessionResults(req, res) {
 
     const technician = await getUserByCondition({ user_id });
     if (!technician) return failureResponse(res, 404, "User not found");
-    if (technician.status !== "ACTIVE" && technician.status !== "WORKING") return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
+      return failureResponse(res, 403, "User is not active");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const session = await getTestSessionFlat(history_id);
     if (!session) return failureResponse(res, 404, "Session not found");
-    if (session.org_id !== technician.org_id) return failureResponse(res, 403, "Access denied");
+    if (session.org_id !== technician.org_id)
+      return failureResponse(res, 403, "Access denied");
 
     const { tests } = req.body || {};
     if (!Array.isArray(tests) || tests.length === 0)
       return failureResponse(res, 400, "tests array required");
 
     const typeIds = tests.map((t) => t.test_type_id).filter(Boolean);
-    if (typeIds.length === 0) return failureResponse(res, 400, "test_type_id required for each test");
+    if (typeIds.length === 0)
+      return failureResponse(res, 400, "test_type_id required for each test");
 
     const validTypes = await getTestTypesByIds(typeIds);
     const validIdSet = new Set(validTypes.map((t) => t.test_type_id));
 
     const rows = tests
-      .filter((t) => validIdSet.has(t.test_type_id) && (t.value_num != null || t.value_text != null))
+      .filter(
+        (t) =>
+          validIdSet.has(t.test_type_id) &&
+          (t.value_num != null || t.value_text != null),
+      )
       .map((t) => ({
         history_id,
         patient_id: session.patient_id,
@@ -807,14 +911,19 @@ export async function addSessionResults(req, res) {
         value_text: t.value_text != null ? String(t.value_text) : null,
       }));
 
-    if (rows.length === 0) return failureResponse(res, 400, "No valid test results to add");
+    if (rows.length === 0)
+      return failureResponse(res, 400, "No valid test results to add");
 
     await bulkCreatePatientTestResults(rows);
 
-    return res.status(200).send({ status: 200, data: rows, message: "Results added to session" });
+    return res
+      .status(200)
+      .send({ status: 200, data: rows, message: "Results added to session" });
   } catch (err) {
     console.error("addSessionResults error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -828,16 +937,27 @@ export async function generateCsvReportTechnician(req, res) {
     if (!technician) return failureResponse(res, 404, "User not found");
     if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
       return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const IST = "Asia/Kolkata";
     const { startDate: rawStart, endDate: rawEnd } = req.query;
 
     if (!rawStart || !rawEnd)
-      return failureResponse(res, 400, "startDate and endDate query params are required (YYYY-MM-DD)");
+      return failureResponse(
+        res,
+        400,
+        "startDate and endDate query params are required (YYYY-MM-DD)",
+      );
 
-    const startDate = moment.tz(rawStart, "YYYY-MM-DD", IST).startOf("day").toISOString();
-    const endDate = moment.tz(rawEnd, "YYYY-MM-DD", IST).endOf("day").toISOString();
+    const startDate = moment
+      .tz(rawStart, "YYYY-MM-DD", IST)
+      .startOf("day")
+      .toISOString();
+    const endDate = moment
+      .tz(rawEnd, "YYYY-MM-DD", IST)
+      .endOf("day")
+      .toISOString();
 
     const histories = await getResultsForCsvExport(
       technician.org_id,
@@ -860,7 +980,9 @@ export async function generateCsvReportTechnician(req, res) {
     });
   } catch (err) {
     console.error("generateCsvReportTechnician error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -874,16 +996,27 @@ export async function generatePdfReportTechnician(req, res) {
     if (!technician) return failureResponse(res, 404, "User not found");
     if (technician.status !== "ACTIVE" && technician.status !== "WORKING")
       return failureResponse(res, 403, "User is not active");
-    if (technician.role !== constants.TECHNICIAN) return failureResponse(res, 403, "Forbidden");
+    if (technician.role !== constants.TECHNICIAN)
+      return failureResponse(res, 403, "Forbidden");
 
     const IST = "Asia/Kolkata";
     const { startDate: rawStart, endDate: rawEnd } = req.query;
 
     if (!rawStart || !rawEnd)
-      return failureResponse(res, 400, "startDate and endDate query params are required (YYYY-MM-DD)");
+      return failureResponse(
+        res,
+        400,
+        "startDate and endDate query params are required (YYYY-MM-DD)",
+      );
 
-    const startDate = moment.tz(rawStart, "YYYY-MM-DD", IST).startOf("day").toISOString();
-    const endDate = moment.tz(rawEnd, "YYYY-MM-DD", IST).endOf("day").toISOString();
+    const startDate = moment
+      .tz(rawStart, "YYYY-MM-DD", IST)
+      .startOf("day")
+      .toISOString();
+    const endDate = moment
+      .tz(rawEnd, "YYYY-MM-DD", IST)
+      .endOf("day")
+      .toISOString();
 
     const histories = await getResultsForCsvExport(
       technician.org_id,
@@ -913,7 +1046,9 @@ export async function generatePdfReportTechnician(req, res) {
     });
   } catch (err) {
     console.error("generatePdfReportTechnician error:", err);
-    return res.status(500).send({ status: 500, message: "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: "Internal server error" });
   }
 }
 
@@ -935,20 +1070,34 @@ export async function submitUartResult(req, res) {
     const items = Array.isArray(body) ? body : [body];
 
     for (const item of items) {
-      if (!item.patient_id) return failureResponse(res, 400, "patient_id required in each entry");
-      if (!item.test) return failureResponse(res, 400, "test required in each entry");
-      if (item.val == null) return failureResponse(res, 400, "val required in each entry");
+      if (!item.patient_id)
+        return failureResponse(res, 400, "patient_id required in each entry");
+      if (!item.test)
+        return failureResponse(res, 400, "test required in each entry");
+      if (item.val == null)
+        return failureResponse(res, 400, "val required in each entry");
     }
 
     // Validate all patients belong to the technician's org
     for (const item of items) {
-      const patient = await getPatientByIdFlat({ patient_id: String(item.patient_id) });
-      if (!patient) return failureResponse(res, 404, `Patient ${item.patient_id} not found`);
+      const patient = await getPatientByIdFlat({
+        patient_id: String(item.patient_id),
+      });
+      if (!patient)
+        return failureResponse(
+          res,
+          404,
+          `Patient ${item.patient_id} not found`,
+        );
       if (patient.org_id !== technician.org_id)
-        return failureResponse(res, 403, `Patient ${item.patient_id} not in your organization`);
+        return failureResponse(
+          res,
+          403,
+          `Patient ${item.patient_id} not in your organization`,
+        );
     }
 
-    const entries = items.map(item => ({
+    const entries = items.map((item) => ({
       patient_id: String(item.patient_id),
       test_name: item.test,
       value_num: Number(item.val),
@@ -969,7 +1118,9 @@ export async function submitUartResult(req, res) {
     });
   } catch (err) {
     console.error("submitUartResult error:", err);
-    return res.status(500).send({ status: 500, message: err.message || "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: err.message || "Internal server error" });
   }
 }
 
@@ -988,11 +1139,18 @@ export async function submitUartSessionComplete(req, res) {
     const { patient_id, results } = req.body || {};
 
     if (!patient_id) return failureResponse(res, 400, "patient_id required");
-    if (!Array.isArray(results) || results.length === 0) return failureResponse(res, 400, "results array required");
+    if (!Array.isArray(results) || results.length === 0)
+      return failureResponse(res, 400, "results array required");
 
     for (const r of results) {
-      if (!r.test_name) return failureResponse(res, 400, "each result must have test_name");
-      if (r.value_num == null && !r.value_text) return failureResponse(res, 400, `value_num or value_text required for "${r.test_name}"`);
+      if (!r.test_name)
+        return failureResponse(res, 400, "each result must have test_name");
+      if (r.value_num == null && !r.value_text)
+        return failureResponse(
+          res,
+          400,
+          `value_num or value_text required for "${r.test_name}"`,
+        );
     }
 
     const patient = await getPatientByIdFlat({ patient_id });
@@ -1013,7 +1171,9 @@ export async function submitUartSessionComplete(req, res) {
     });
   } catch (err) {
     console.error("submitUartSessionComplete error:", err);
-    return res.status(500).send({ status: 500, message: err.message || "Internal server error" });
+    return res
+      .status(500)
+      .send({ status: 500, message: err.message || "Internal server error" });
   }
 }
 
@@ -1023,33 +1183,6 @@ const calculateDerivedTests = async ({
   org_id,
   transaction,
 }) => {
-  //   const sessionResults = await PatientTestResults.findAll({
-  //     where: { history_id },
-  //     include: [
-  //       {
-  //         model: TestTypes,
-  //         attributes: ["name"],
-  //       },
-  //     ],
-  //     transaction,
-  //   });
-
-  //   const values = {};
-
-  //   sessionResults.forEach((r) => {
-  //     const testName = r.TestType?.name;
-
-  //     ```
-  // const value =
-  //   r.value_num !== null
-  //     ? Number(r.value_num)
-  //     : r.value_text;
-
-  // values[testName] = value;
-  // ```
-
-  //   });
-
   const sessionResults = await PatientTestResults.findAll({
     where: { history_id },
     include: [
@@ -1067,10 +1200,7 @@ const calculateDerivedTests = async ({
   sessionResults.forEach((r) => {
     const testName = r.testType?.name;
 
-    const value =
-      r.value_num !== null
-        ? Number(r.value_num)
-        : r.value_text;
+    const value = r.value_num !== null ? Number(r.value_num) : r.value_text;
 
     values[testName] = value;
   });
@@ -1090,10 +1220,7 @@ const calculateDerivedTests = async ({
   // ----------------------------
   // Indirect Bilirubin
   // ----------------------------
-  if (
-    values["S. Total Bilirubin"] &&
-    values["S. Direct Bilirubin"]
-  ) {
+  if (values["S. Total Bilirubin"] && values["S. Direct Bilirubin"]) {
     calculatedResults.push({
       name: "Indirect Bilirubin",
       value:
@@ -1105,53 +1232,34 @@ const calculateDerivedTests = async ({
   // ----------------------------
   // S. Globulin
   // ----------------------------
-  if (
-    values["S. TP"] &&
-    values["S. Albumin"]
-  ) {
+  if (values["S. TP"] && values["S. Albumin"]) {
     calculatedResults.push({
       name: "S. Globulin",
-      value:
-        Number(values["S. TP"]) -
-        Number(values["S. Albumin"]),
+      value: Number(values["S. TP"]) - Number(values["S. Albumin"]),
     });
   }
 
   // ----------------------------
   // S. A/G Ratio
   // ----------------------------
-  if (
-    values["S. TP"] &&
-    values["S. Albumin"]
-  ) {
-    const globulin =
-      Number(values["S. TP"]) -
-      Number(values["S. Albumin"]);
+  if (values["S. TP"] && values["S. Albumin"]) {
+    const globulin = Number(values["S. TP"]) - Number(values["S. Albumin"]);
 
-    ```
-if (globulin !== 0) {
-  calculatedResults.push({
-    name: "S. A/G Ratio",
-    value:
-      Number(values["S. Albumin"]) / globulin,
-  });
-}
-```
-
+    if (globulin !== 0) {
+      calculatedResults.push({
+        name: "S. A/G Ratio",
+        value: Number(values["S. Albumin"]) / globulin,
+      });
+    }
   }
 
   // ----------------------------
   // S. Non HDL-C
   // ----------------------------
-  if (
-    values["S. TC"] &&
-    values["S. HDL-C"]
-  ) {
+  if (values["S. TC"] && values["S. HDL-C"]) {
     calculatedResults.push({
       name: "S. Non HDL-C",
-      value:
-        Number(values["S. TC"]) -
-        Number(values["S. HDL-C"]),
+      value: Number(values["S. TC"]) - Number(values["S. HDL-C"]),
     });
   }
 
@@ -1161,55 +1269,44 @@ if (globulin !== 0) {
   if (values["S. Triglycerides"]) {
     calculatedResults.push({
       name: "S. VLDL-C",
-      value:
-        Number(values["S. Triglycerides"]) / 5,
+      value: Number(values["S. Triglycerides"]) / 5,
     });
   }
 
   // ----------------------------
   // S. LDL-C
   // ----------------------------
-  if (
-    values["S. TC"] &&
-    values["S. HDL-C"] &&
-    values["S. Triglycerides"]
-  ) {
+  if (values["S. TC"] && values["S. HDL-C"] && values["S. Triglycerides"]) {
+    const ldl =
+      Number(values["S. TC"]) -
+      Number(values["S. HDL-C"]) -
+      Number(values["S. Triglycerides"]) / 5;
+
     calculatedResults.push({
       name: "S. LDL-C",
-      value:
-        Number(values["S. TC"]) -
-        Number(values["S. HDL-C"]) -
-        Number(values["S. Triglycerides"]) / 5,
+      value: ldl,
     });
+
+    values["S. LDL-C"] = ldl;
   }
 
   // ----------------------------
   // LDL / HDL Ratio
   // ----------------------------
-  if (
-    values["S. LDL-C"] &&
-    values["S. HDL-C"]
-  ) {
+  if (values["S. LDL-C"] && values["S. HDL-C"]) {
     calculatedResults.push({
       name: "S. LDL/HDL Ratio",
-      value:
-        Number(values["S. LDL-C"]) /
-        Number(values["S. HDL-C"]),
+      value: Number(values["S. LDL-C"]) / Number(values["S. HDL-C"]),
     });
   }
 
   // ----------------------------
   // Cholesterol / HDL Ratio
   // ----------------------------
-  if (
-    values["S. TC"] &&
-    values["S. HDL-C"]
-  ) {
+  if (values["S. TC"] && values["S. HDL-C"]) {
     calculatedResults.push({
       name: "S. Cholesterol / HDL Ratio",
-      value:
-        Number(values["S. TC"]) /
-        Number(values["S. HDL-C"]),
+      value: Number(values["S. TC"]) / Number(values["S. HDL-C"]),
     });
   }
 
@@ -1219,57 +1316,47 @@ if (globulin !== 0) {
   if (values["HbA1c"]) {
     calculatedResults.push({
       name: "eAG",
-      value:
-        28.7 * Number(values["HbA1c"]) - 46.7,
+      value: 28.7 * Number(values["HbA1c"]) - 46.7,
     });
   }
 
   // ----------------------------
   // SAVE CALCULATED TESTS
   // ----------------------------
-  for (const item of calculatedResults) {
-    // const testType = await TestTypes.findOne({
-    //   where: {
-    //     name: item.name,
-    //     org_id,
-    //   },
-    //   transaction,
-    // });
 
+  for (const item of calculatedResults) {
     const testType = await TestTypes.findOne({
-      where: {
-        name: item.name,
-      },
+      where: where(fn("LOWER", col("name")), item.name.toLowerCase()),
       transaction,
     });
 
-    ```
-if (!testType) continue;
+    // if (!testType) continue;
+    if (!testType) {
+      continue;
+    }
 
-await PatientTestResults.update(
-  {
-    value_num: Number(item.value.toFixed(2)),
-    value_text: null,
-    result_source: "CALCULATED",
-    synced_at: new Date(),
-    is_locked: true,
-    method_used: "Auto Calculated",
-  },
-  {
-    where: {
-      history_id,
-      patient_id: patient.patient_id,
-      test_type_id: testType.test_type_id,
-    },
-    transaction,
-  }
-);
-```
+    const [updatedCount] = await PatientTestResults.update(
+      {
+        value_num: Number(item.value.toFixed(2)),
+        value_text: null,
+        result_source: "CALCULATED",
+        synced_at: new Date(),
+        is_locked: true,
+        method_used: "Calculated",
+      },
+      {
+        where: {
+          history_id,
+          patient_id: patient.patient_id,
+          test_type_id: testType.test_type_id,
+        },
+        transaction,
+      },
+    );
 
+    console.log("Calculated updated:", item.name, updatedCount);
   }
 };
-
-
 
 export const saveUartResult = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -1282,7 +1369,9 @@ export const saveUartResult = async (req, res) => {
       return failureResponse(res, 400, "patient_id and test are required");
     }
 
-    const technician = await getUserByCondition({ user_id: req.user_id || req.user?.user_id || req.user_id });
+    const technician = await getUserByCondition({
+      user_id: req.user_id || req.user?.user_id || req.user_id,
+    });
 
     const patient = await getPatientByIdFlat({
       patient_id: String(patient_id),
@@ -1307,20 +1396,8 @@ export const saveUartResult = async (req, res) => {
       return failureResponse(res, 400, "Please register test session first");
     }
 
-    // const testType = await TestTypes.findOne({
-    //   where: {
-    //     name: test,
-    //     org_id: history.org_id,
-    //   },
-    //   transaction,
-    // });
-
-
     const testType = await TestTypes.findOne({
-      where: where(
-        fn("LOWER", col("name")),
-        test.toLowerCase()
-      ),
+      where: where(fn("LOWER", col("name")), test.toLowerCase()),
       transaction,
     });
 
@@ -1343,7 +1420,7 @@ export const saveUartResult = async (req, res) => {
       return failureResponse(
         res,
         400,
-        `${test} was not selected in registered test session`
+        `${test} was not selected in registered test session`,
       );
     }
 
@@ -1355,7 +1432,7 @@ export const saveUartResult = async (req, res) => {
       return failureResponse(
         res,
         409,
-        `${test} already has a saved value in this session`
+        `${test} already has a saved value in this session`,
       );
     }
 
@@ -1380,7 +1457,7 @@ export const saveUartResult = async (req, res) => {
           result_id: existingResult.result_id,
         },
         transaction,
-      }
+      },
     );
 
     await calculateDerivedTests({
@@ -1389,7 +1466,6 @@ export const saveUartResult = async (req, res) => {
       org_id: history.org_id,
       transaction,
     });
-
 
     await transaction.commit();
 

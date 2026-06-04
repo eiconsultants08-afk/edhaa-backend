@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "nodemon server/app.js",
+    "start:dev": "nodemon server/app.js dev",
+    "start:prod": "nodemon server/app.js prod",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Edhaa Team",

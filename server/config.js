@@ -19,10 +19,7 @@ export const configuration = {
       refreshsecret: secrets.REFRESH_SECRET,
     },
     ui: [
-      "http://localhost:3000",
-      "http://www.localhost:3000",
       "http://localhost:5173",
-      "http://10.137.14.218:3000",
       "https://main.d2557ic1vsizwi.amplifyapp.com",
     ],
     port: 3030,
