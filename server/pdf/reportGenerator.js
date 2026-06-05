@@ -243,8 +243,7 @@ function drawPatientInfo(doc, session, startY) {
   const patientCode = session.patient_id || "-";
   const sampleCode = session.sample_id || "-";
 
-  const age =
-    session.patient_age || session.age || calcAge(session.patient_dob) || "-";
+  const age = session.patient_age ?? session.age ?? "-";
 
   const gender = session.patient_gender || session.gender || "-";
 
@@ -684,55 +683,6 @@ export function generateBulkReportPdf(histories, meta = {}) {
     let pageNum = 0;
     const totalRows = rows.length;
 
-    // const addPage = () => {
-    //   doc.addPage();
-    //   pageNum++;
-    //   let y = MARGIN;
-
-    //   // Org name — plain bold centred
-    //   doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(14)
-    //      .text(orgName, MARGIN, y, { width: CW, align: "center", lineBreak: false });
-    //   y += 20;
-
-    //   if (orgAddress) {
-    //     doc.fillColor(GRAY).font("Helvetica").fontSize(9)
-    //        .text(orgAddress, MARGIN, y, { width: CW, align: "center", lineBreak: false });
-    //     y += 14;
-    //   }
-
-    //   if (deptName) {
-    //     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(9)
-    //        .text(`DEPARTMENT OF ${deptName.toUpperCase()}`, MARGIN, y,
-    //          { width: CW, align: "center", lineBreak: false });
-    //     y += 14;
-    //   }
-
-    //   // Report period sub-line
-    //   const subtitle = [
-    //     performer || null,
-    //     `Report Period: ${label}`,
-    //     `Total Results: ${totalRows}`,
-    //   ].filter(Boolean).join("   |   ");
-    //   doc.fillColor(GRAY).font("Helvetica").fontSize(8)
-    //      .text(subtitle, MARGIN, y, { width: CW, align: "center", lineBreak: false });
-    //   y += 14;
-
-    //   hline(doc, y, 1, BLACK);
-    //   y += 8;
-
-    //   // Table header row — stroke-only, bold text
-    //   doc.rect(MARGIN, y, CW, RH).strokeColor(BLACK).lineWidth(0.5).stroke();
-    //   let hx = MARGIN;
-    //   HDRS.forEach((h, i) => {
-    //     if (i > 0) vline(doc, hx, y, y + RH, 0.5, BLACK);
-    //     doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8)
-    //        .text(h, hx + 4, y + 8, { width: COLS[i] - 8, align: "center", lineBreak: false });
-    //     hx += COLS[i];
-    //   });
-    //   y += RH;
-    //   return y;
-    // };
-
     const addPage = () => {
       doc.addPage();
       pageNum++;
@@ -880,7 +830,6 @@ export function generateTestReportPdf(result) {
     sample_id: result.sample_id,
     patient_name: result.patient_name,
     patient_gender: result.patient_gender,
-    patient_dob: result.patient_dob,
     patient_phone: result.patient_phone,
     patient_email: result.patient_email,
     patient_id: result.patient_id,
@@ -947,7 +896,7 @@ export function generateTodayPatientReportPdf({ patient, sessions, orgName }) {
       org_name: patient.org_name || orgName || "-",
 
       patient_gender: patient.gender || patient.patient_gender || "-",
-      patient_dob: patient.dob || patient.patient_dob || null,
+      patient_age: patient.age || patient.patient_age || null,
 
       // first session of the day
       created_at: firstSession.created_at || firstSession.test_date,

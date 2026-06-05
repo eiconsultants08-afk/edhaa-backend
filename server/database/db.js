@@ -466,7 +466,7 @@ export async function getTestResultByIdFlat(result_id) {
         [sequelize.col("patient.sample_id"), "sample_id"],
         [sequelize.col("patient.name"), "patient_name"],
         [sequelize.col("patient.gender"), "patient_gender"],
-        [sequelize.col("patient.dob"), "patient_dob"],
+        [sequelize.col("patient.age"), "patient_age"],
         [sequelize.col("patient.phone"), "patient_phone"],
         [sequelize.col("patient.email"), "patient_email"],
         [sequelize.col("org.org_name"), "org_name"],
@@ -533,7 +533,7 @@ export async function getTestSessionFlat(history_id) {
   const patient = await Patients.findOne({
     where: { patient_id: history.patient_id },
     raw: true,
-    attributes: ["patient_id","sample_id", "name", "gender", "dob", "phone", "email"],
+    attributes: ["patient_id","sample_id", "name", "gender", "age", "phone", "email"],
   });
 
   const results = await PatientTestResults.findAll({
@@ -571,7 +571,7 @@ export async function getTestSessionFlat(history_id) {
     sample_id: patient?.sample_id || "",
     patient_name: patient?.name || "-",
     patient_gender: patient?.gender || "-",
-    patient_dob: patient?.dob || "-",
+    patient_age: patient?.age ?? "-",
     patient_phone: patient?.phone || "-",
     patient_email: patient?.email || "-",
     results: results || [],
@@ -880,7 +880,7 @@ export async function getResultsForCsvExport(org_id, startDate, endDate, entered
       {
         model: Patients,
         as: "patient",
-        attributes: ["patient_id", "name", "gender", "dob"],
+        attributes: ["patient_id", "name", "gender", "age"],
         required: false,
       },
       {

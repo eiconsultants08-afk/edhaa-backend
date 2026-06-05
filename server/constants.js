@@ -25,8 +25,9 @@ export const constants = {
 PATIENT_ATTRIBUTES: [
   "patient_id",
   "name",
+  "lastname",
+  "age",
   "gender",
-  "dob",
   "address",
   "phone",
   "email",
@@ -37,8 +38,9 @@ PATIENT_ATTRIBUTES: [
 ],
 ADD_PATIENT_ATTRIBUTES: [
   "name",
+  "lastname",
+  "age",
   "gender",
-  "dob",
   "address",
   "phone",
   "email",
@@ -47,8 +49,9 @@ ADD_PATIENT_ATTRIBUTES: [
 
 UPDATE_PATIENT_ATTRIBUTES: [
   "name",
+  "lastname",
+  "age",
   "gender",
-  "dob",
   "address",
   "phone",
   "email"

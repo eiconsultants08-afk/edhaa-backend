@@ -30,7 +30,15 @@ const Patients = sequelize.define(
       allowNull: true,
     },
 
-    dob: { type: DataTypes.DATEONLY },
+    age: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: {
+        min: 0,
+        max: 999,
+      },
+    },
+
     address: { type: DataTypes.TEXT },
     phone: { type: DataTypes.TEXT },
     email: { type: DataTypes.TEXT },
@@ -46,7 +54,7 @@ const Patients = sequelize.define(
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",
-  }
+  },
 );
 
 // Associations
