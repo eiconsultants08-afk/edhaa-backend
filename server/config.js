@@ -19,8 +19,7 @@ export const configuration = {
       refreshsecret: secrets.REFRESH_SECRET,
     },
     ui: [
-      "http://localhost:5173",
-      "https://main.d2557ic1vsizwi.amplifyapp.com",
+      "http://localhost:5173"
     ],
     port: 3030,
   },
@@ -37,7 +36,7 @@ export const configuration = {
       secret: secrets.SECRET,
       refreshsecret: secrets.REFRESH_SECRET,
     },
-    ui: ["http://localhost:5173", "https://main.d2557ic1vsizwi.amplifyapp.com"],
+    ui: ["https://biocheq.edhaainnovations.com"],
     port: 3030,
   },
 };
