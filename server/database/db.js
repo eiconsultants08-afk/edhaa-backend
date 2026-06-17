@@ -297,14 +297,33 @@ export async function getPatientByIdFlat(conditions) {
 }
 
 export async function createPatient(data) {
-  if (!data.patient_id) {
-    const rows = await sequelize.query(
-      "SELECT LPAD(nextval('patients_id_seq')::text, 5, '0') AS id",
-      { type: sequelize.QueryTypes.SELECT }
-    );
-    data.patient_id = rows[0]?.id;
-  }
-  return Patients.create(data);
+  return sequelize.transaction(async (t) => {
+    await sequelize.query(`LOCK TABLE patients IN EXCLUSIVE MODE`, {
+      transaction: t,
+    });
+
+    if (!data.patient_id) {
+      const rows = await sequelize.query(
+        `
+        SELECT LPAD(
+          (COALESCE(MAX(patient_id::int), 0) + 1)::text,
+          5,
+          '0'
+        ) AS id
+        FROM patients
+        WHERE patient_id ~ '^[0-9]+$'
+        `,
+        {
+          type: sequelize.QueryTypes.SELECT,
+          transaction: t,
+        },
+      );
+
+      data.patient_id = rows[0]?.id;
+    }
+
+    return Patients.create(data, { transaction: t });
+  });
 }
 
 // ── TestHistory ────────────────────────────────────────────────────────────────
