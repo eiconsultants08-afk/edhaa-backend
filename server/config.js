@@ -19,7 +19,8 @@ export const configuration = {
       refreshsecret: secrets.REFRESH_SECRET,
     },
     ui: [
-      "http://localhost:5173"
+      "http://localhost:5173",
+      "http://192.168.0.127:8081",
     ],
     port: 3030,
   },
