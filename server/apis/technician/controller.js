@@ -1358,83 +1358,281 @@ const calculateDerivedTests = async ({
   }
 };
 
+// export const saveUartResult = async (req, res) => {
+//   const transaction = await sequelize.transaction();
+
+//   try {
+//     const { patient_id, test, val, unit, raw } = req.body;
+
+//     if (!patient_id || !test) {
+//       await transaction.rollback();
+//       return failureResponse(res, 400, "patient_id and test are required");
+//     }
+
+//     const technician = await getUserByCondition({
+//       user_id: req.user_id || req.user?.user_id || req.user_id,
+//     });
+
+//     const patient = await getPatientByIdFlat({
+//       patient_id: String(patient_id),
+//     });
+
+//     if (!patient) {
+//       await transaction.rollback();
+//       return failureResponse(res, 404, `Patient ${patient_id} not found`);
+//     }
+
+//     const history = await TestHistory.findOne({
+//       where: {
+//         patient_id: String(patient_id),
+//         status: "PENDING",
+//       },
+//       order: [["created_at", "DESC"]],
+//       transaction,
+//     });
+
+//     if (!history) {
+//       await transaction.rollback();
+//       return failureResponse(res, 400, "Please register test session first");
+//     }
+
+//     const testType = await TestTypes.findOne({
+//       where: where(fn("LOWER", col("name")), test.toLowerCase()),
+//       transaction,
+//     });
+
+//     if (!testType) {
+//       await transaction.rollback();
+//       return failureResponse(res, 404, `Test type not found for ${test}`);
+//     }
+
+//     const existingResult = await PatientTestResults.findOne({
+//       where: {
+//         history_id: history.history_id,
+//         patient_id: String(patient_id),
+//         test_type_id: testType.test_type_id,
+//       },
+//       transaction,
+//     });
+
+//     if (!existingResult) {
+//       await transaction.rollback();
+//       return failureResponse(
+//         res,
+//         400,
+//         `${test} was not selected in registered test session`,
+//       );
+//     }
+
+//     if (
+//       existingResult.value_num !== null ||
+//       existingResult.value_text !== null
+//     ) {
+//       await transaction.rollback();
+//       return failureResponse(
+//         res,
+//         409,
+//         `${test} already has a saved value in this session`,
+//       );
+//     }
+
+//     const isNumeric =
+//       val !== null &&
+//       val !== undefined &&
+//       val !== "" &&
+//       !Number.isNaN(Number(val));
+
+//     await PatientTestResults.update(
+//       {
+//         value_num: isNumeric ? Number(val) : null,
+//         value_text: isNumeric ? null : String(val),
+//         raw_value: raw ? String(raw) : null,
+//         result_source: "UART",
+//         synced_at: new Date(),
+//         is_locked: true,
+//         method_used: "UART Console",
+//       },
+//       {
+//         where: {
+//           result_id: existingResult.result_id,
+//         },
+//         transaction,
+//       },
+//     );
+
+//     await calculateDerivedTests({
+//       history_id: history.history_id,
+//       patient,
+//       org_id: history.org_id,
+//       transaction,
+//     });
+
+//     await transaction.commit();
+
+//     return res.status(200).send({
+//       status: 200,
+//       data: {
+//         history_id: history.history_id,
+//         result_id: existingResult.result_id,
+//       },
+//       message: "UART result saved successfully",
+//     });
+//   } catch (error) {
+//     await transaction.rollback();
+
+//     console.error("Save UART result error:", error);
+
+//     return res.status(500).send({
+//       status: 500,
+//       message: "Failed to save UART result",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
+
 export const saveUartResult = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const { patient_id, test, val, unit, raw } = req.body;
+    const { patient_id, test, val, unit, raw } = req.body || {};
 
     if (!patient_id || !test) {
       await transaction.rollback();
       return failureResponse(res, 400, "patient_id and test are required");
     }
 
+    if (val === null || val === undefined || val === "") {
+      await transaction.rollback();
+      return failureResponse(res, 400, "val is required");
+    }
+
     const technician = await getUserByCondition({
-      user_id: req.user_id || req.user?.user_id || req.user_id,
+      user_id: req.user_id || req.user?.user_id,
     });
 
+    if (!technician) {
+      await transaction.rollback();
+      return failureResponse(res, 404, "User not found");
+    }
+
+    if (
+      technician.status !== "ACTIVE" &&
+      technician.status !== "WORKING"
+    ) {
+      await transaction.rollback();
+      return failureResponse(res, 403, "User not active");
+    }
+
+    if (technician.role !== constants.TECHNICIAN) {
+      await transaction.rollback();
+      return failureResponse(res, 403, "Forbidden");
+    }
+
+    const normalizedPatientId = String(patient_id).trim();
+    const normalizedTestName = String(test).trim();
+
     const patient = await getPatientByIdFlat({
-      patient_id: String(patient_id),
+      patient_id: normalizedPatientId,
     });
 
     if (!patient) {
       await transaction.rollback();
-      return failureResponse(res, 404, `Patient ${patient_id} not found`);
+      return failureResponse(
+        res,
+        404,
+        `Patient ${normalizedPatientId} not found`,
+      );
     }
 
-    const history = await TestHistory.findOne({
-      where: {
-        patient_id: String(patient_id),
-        status: "PENDING",
-      },
-      order: [["created_at", "DESC"]],
-      transaction,
-    });
-
-    if (!history) {
+    if (patient.org_id !== technician.org_id) {
       await transaction.rollback();
-      return failureResponse(res, 400, "Please register test session first");
+      return failureResponse(
+        res,
+        403,
+        `Patient ${normalizedPatientId} not in your organization`,
+      );
     }
 
+    /*
+     * Find the test type first.
+     */
     const testType = await TestTypes.findOne({
-      where: where(fn("LOWER", col("name")), test.toLowerCase()),
+      where: where(
+        fn("LOWER", col("name")),
+        normalizedTestName.toLowerCase(),
+      ),
       transaction,
     });
 
     if (!testType) {
       await transaction.rollback();
-      return failureResponse(res, 404, `Test type not found for ${test}`);
+      return failureResponse(
+        res,
+        404,
+        `Test type not found for ${normalizedTestName}`,
+      );
     }
 
+    /*
+     * Find the exact empty result row using:
+     * patient + test type + pending session.
+     *
+     * This avoids selecting the wrong pending session.
+     */
     const existingResult = await PatientTestResults.findOne({
       where: {
-        history_id: history.history_id,
-        patient_id: String(patient_id),
+        patient_id: normalizedPatientId,
         test_type_id: testType.test_type_id,
+        value_num: null,
+        value_text: null,
+        org_id: technician.org_id,
       },
+      include: [
+        {
+          model: TestHistory,
+          as: "history",
+          required: true,
+          where: {
+            patient_id: normalizedPatientId,
+            org_id: technician.org_id,
+            status: "PENDING",
+          },
+          attributes: [
+            "history_id",
+            "patient_id",
+            "org_id",
+            "device_id",
+            "status",
+            "created_at",
+          ],
+        },
+      ],
+      order: [
+        [
+          {
+            model: TestHistory,
+            as: "history",
+          },
+          "created_at",
+          "ASC",
+        ],
+      ],
       transaction,
     });
 
     if (!existingResult) {
       await transaction.rollback();
+
       return failureResponse(
         res,
         400,
-        `${test} was not selected in registered test session`,
+        `No pending ${normalizedTestName} test found for Patient ${normalizedPatientId}`,
       );
     }
 
-    if (
-      existingResult.value_num !== null ||
-      existingResult.value_text !== null
-    ) {
-      await transaction.rollback();
-      return failureResponse(
-        res,
-        409,
-        `${test} already has a saved value in this session`,
-      );
-    }
+    const history = existingResult.history;
 
     const isNumeric =
       val !== null &&
@@ -1442,11 +1640,11 @@ export const saveUartResult = async (req, res) => {
       val !== "" &&
       !Number.isNaN(Number(val));
 
-    await PatientTestResults.update(
+    const [updatedCount] = await PatientTestResults.update(
       {
         value_num: isNumeric ? Number(val) : null,
         value_text: isNumeric ? null : String(val),
-        raw_value: raw ? String(raw) : null,
+        raw_value: raw != null ? String(raw) : null,
         result_source: "UART",
         synced_at: new Date(),
         is_locked: true,
@@ -1455,10 +1653,22 @@ export const saveUartResult = async (req, res) => {
       {
         where: {
           result_id: existingResult.result_id,
+          value_num: null,
+          value_text: null,
         },
         transaction,
       },
     );
+
+    if (updatedCount !== 1) {
+      await transaction.rollback();
+
+      return failureResponse(
+        res,
+        409,
+        `${normalizedTestName} was already saved or updated by another request`,
+      );
+    }
 
     await calculateDerivedTests({
       history_id: history.history_id,
@@ -1478,7 +1688,9 @@ export const saveUartResult = async (req, res) => {
       message: "UART result saved successfully",
     });
   } catch (error) {
-    await transaction.rollback();
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
 
     console.error("Save UART result error:", error);
 

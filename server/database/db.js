@@ -360,7 +360,7 @@ export async function getPatientTestHistory(limit, offset, conditions) {
             model: TestTypes,
             as: "testType",
             attributes: [
-              "test_type_id", "name", "full_name", "unit",
+              "test_type_id", "name", "full_name", "unit","method",
               "normal_min", "normal_max",
               "male_min", "male_max",
               "female_min", "female_max",
