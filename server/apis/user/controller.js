@@ -1,6 +1,7 @@
-import { getUserWithOrg } from "../../database/db.js";
+import { getUserByCondition, getUserWithOrg, updateUser } from "../../database/db.js";
 import Users from "../../database/users.js";
 import { Op } from "sequelize";
+import { checkPassword, hashPassword } from "../../utils.js";
 
 //show user profile
 export async function userProfile(req, res) {
@@ -144,6 +145,107 @@ export async function updateUserProfile(req, res) {
     return res.status(500).send({
       status: 500,
       message: "Updating user profile failed.",
+    });
+  }
+}
+
+
+export async function changePassword(req, res) {
+  try {
+    const { user_id } = req;
+    const {
+      current_password,
+      new_password,
+      confirm_password,
+    } = req.body;
+
+    // 1. Validate required fields
+    if (!current_password || !new_password || !confirm_password) {
+      return res.status(400).send({
+        status: 400,
+        message: "All password fields are required.",
+      });
+    }
+
+    // 2. Check confirmation
+    if (new_password !== confirm_password) {
+      return res.status(400).send({
+        status: 400,
+        message: "New password and confirm password do not match.",
+      });
+    }
+
+    // 3. Basic password length
+    if (new_password.length < 8) {
+      return res.status(400).send({
+        status: 400,
+        message: "New password must be at least 8 characters.",
+      });
+    }
+
+    // 4. Get logged-in user
+    const user = await getUserByCondition({
+      user_id,
+    });
+
+    if (!user) {
+      return res.status(404).send({
+        status: 404,
+        message: "User not found.",
+      });
+    }
+
+    // 5. Verify current password
+    const isCurrentPasswordCorrect = await checkPassword(
+      current_password,
+      user.password
+    );
+
+    if (!isCurrentPasswordCorrect) {
+      return res.status(401).send({
+        status: 401,
+        message: "Current password is incorrect.",
+      });
+    }
+
+    // 6. Don't allow same password
+    const isSamePassword = await checkPassword(
+      new_password,
+      user.password
+    );
+
+    if (isSamePassword) {
+      return res.status(400).send({
+        status: 400,
+        message: "New password must be different from current password.",
+      });
+    }
+
+    // 7. Hash new password
+    const hashedPassword = await hashPassword(new_password);
+
+    // 8. Update database
+    const updatedUser = await updateUser(user_id, {
+      password: hashedPassword,
+    });
+
+    if (!updatedUser) {
+      return res.status(400).send({
+        status: 400,
+        message: "Password could not be updated.",
+      });
+    }
+
+    return res.status(200).send({
+      status: 200,
+      message: "Password changed successfully.",
+    });
+  } catch (err) {
+    console.error("Change password error:", err);
+
+    return res.status(500).send({
+      status: 500,
+      message: "Changing password failed.",
     });
   }
 }
